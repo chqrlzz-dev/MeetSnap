@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetSnap</title>
+  <style>
+    /* ------------------------------------------------------------------
+       MeetSnap Popup Styles — Redesigned "Glassmorphism"
+       ------------------------------------------------------------------ */
+
+    @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap");
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --color-bg:           #080a0c;
+      --color-surface:      rgba(255, 255, 255, 0.03);
+      --color-border:       rgba(255, 255, 255, 0.08);
+      --color-accent:       #00e5ff;
+      --color-accent-glow:  rgba(0, 229, 255, 0.4);
+      --color-text-primary: #f0f6fc;
+      --color-text-muted:   #8b949e;
+      
+      --font-main: "Outfit", system-ui, -apple-system, sans-serif;
+    }
+
+    html, body {
+      width: 320px;
+      background: var(--color-bg);
+      color: var(--color-text-primary);
+      font-family: var(--font-main);
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      padding: 20px;
+      background: radial-gradient(circle at top right, rgba(0, 229, 255, 0.05), transparent 60%);
+    }
+
+    /* ------------------------------------------------------------------
+       Header
+       ------------------------------------------------------------------ */
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .header__logo {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--color-accent), #00a2ff);
+      border-radius: 10px;
+      color: #000;
+      box-shadow: 0 4px 15px var(--color-accent-glow);
+    }
+
+    .header__title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    /* ------------------------------------------------------------------
+       Cards
+       ------------------------------------------------------------------ */
+
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      margin-bottom: 16px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--color-border);
+    }
+
+    .status-badge--active { color: var(--color-accent); border-color: rgba(0, 229, 255, 0.2); }
+    .status-badge--inactive { color: var(--color-text-muted); }
+
+    /* ------------------------------------------------------------------
+       Controls
+       ------------------------------------------------------------------ */
+
+    .primary-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      background: #fff;
+      color: #000;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      margin-bottom: 20px;
+    }
+
+    .primary-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+    }
+
+    .primary-btn:active { transform: translateY(0); }
+    .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .toggle-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .toggle-item:hover { background: rgba(255, 255, 255, 0.03); }
+
+    .toggle-label { font-size: 13px; font-weight: 500; }
+
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .4s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider { background-color: var(--color-accent); }
+    input:checked + .slider:before { transform: translateX(16px); }
+
+    /* ------------------------------------------------------------------
+       Footer
+       ------------------------------------------------------------------ */
+
+    .privacy-box {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+      padding: 0 4px;
+    }
+
+    .footer {
+      margin-top: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .footer-link {
+      color: var(--color-text-muted);
+      text-decoration: none;
+      font-size: 12px;
+      transition: color 0.2s ease;
+    }
+
+    .footer-link:hover { color: var(--color-accent); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header class="header">
+      <div class="header__logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      </div>
+      <h1 class="header__title">MeetSnap</h1>
+    </header>
+
+    <div id="active-panel">
+      <div class="card">
+        <div id="status-badge" class="status-badge status-badge--inactive">
+          <span id="status-label">Checking…</span>
+        </div>
+        <div style="margin-top: 12px; font-size: 12px; color: var(--color-text-muted);">
+          Screenshots captured: <span id="session-count" style="color: #fff; font-weight: 600;">0</span>
+        </div>
+      </div>
+
+      <button id="btn-capture" class="primary-btn">Capture Now</button>
+
+      <div class="toggle-group">
+        <label class="toggle-item">
+          <span class="toggle-label">Auto-hide button</span>
+          <div class="switch">
+            <input type="checkbox" id="toggle-auto-hide" checked>
+            <span class="slider"></span>
+          </div>
+        </label>
+        
+        <label class="toggle-item">
+          <span class="toggle-label">Shutter sound</span>
+          <div class="switch">
+            <input type="checkbox" id="toggle-shutter-sound" checked>
+            <span class="slider"></span>
+          </div>
+        </label>
+
+        <label class="toggle-item">
+          <span class="toggle-label">Visual flash</span>
+          <div class="switch">
+            <input type="checkbox" id="toggle-visual-flash" checked>
+            <span class="slider"></span>
+          </div>
+        </label>
+
+        <label class="toggle-item">
+          <span class="toggle-label" style="color: var(--color-accent);">Send Diagnostic Data</span>
+          <div class="switch">
+            <input type="checkbox" id="toggle-webhook" checked>
+            <span class="slider"></span>
+          </div>
+        </label>
+      </div>
+
+      <div id="privacy-notice" class="privacy-box" style="margin-top: 20px;">
+        <strong>Data usage:</strong> When diagnostic data is enabled, usage statistics and technical metadata are shared to improve the service.
+      </div>
+
+      <button id="btn-reset-position" style="background:none; border:none; color: var(--color-text-muted); font-size: 11px; cursor: pointer; width: 100%; margin-top: 16px; text-decoration: underline;">
+        Reset button position
+      </button>
+    </div>
+
+    <div id="inactive-panel" class="hidden">
+      <div class="card" style="text-align: center; padding: 32px 16px;">
+        <div style="font-size: 24px; margin-bottom: 12px;">📷</div>
+        <p style="font-weight: 500; margin-bottom: 8px;">Not on Google Meet</p>
+        <p style="font-size: 12px; color: var(--color-text-muted);">Join a meeting at meet.google.com to start capturing.</p>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <a href="https://meetsnap.dev" target="_blank" class="footer-link">meetsnap.dev ↗</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="64" fill="#0d1117"/>
+
+  <!-- Outer ring accent -->
+  <circle cx="64" cy="64" r="58" fill="none" stroke="#00e5ff" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Camera body -->
+  <rect x="22" y="42" width="84" height="58" rx="10" ry="10"
+    fill="none" stroke="#00e5ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Viewfinder bump -->
+  <path d="M48 42 L55 30 L73 30 L80 42" fill="none" stroke="#00e5ff"
+    stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Lens outer ring -->
+  <circle cx="64" cy="70" r="18" fill="none" stroke="#00e5ff" stroke-width="5"/>
+
+  <!-- Lens inner fill -->
+  <circle cx="64" cy="70" r="9" fill="#00e5ff" opacity="0.25"/>
+
+  <!-- Shutter dot -->
+  <circle cx="98" cy="52" r="4" fill="#00e5ff" opacity="0.7"/>
+</svg>
