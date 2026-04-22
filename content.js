@@ -55,7 +55,8 @@ const sessionState = {
   lastScreenshotTimestampMs: 0,
   isDragging:               false,
   dragOffsetX:              0,
-  dragOffsetY:              0
+  dragOffsetY:              0,
+  isInitialized:            false
 };
 
 // DOM references populated after injection
@@ -71,19 +72,49 @@ let flashOverlay      = null;
 initializeMeetSnapAsync();
 
 async function initializeMeetSnapAsync() {
-  console.log("MeetSnap: Initializing content script...");
+  console.log("MeetSnap: Starting initialization...");
+
+  // Robust injection: wait for body if not present
+  const performInjection = () => {
+    if (!document.body || sessionState.isInitialized) return false;
+    
+    try {
+      injectFlashOverlay();
+      injectToastContainer();
+      injectFloatingUI();
+      sessionState.isInitialized = true;
+      console.log("MeetSnap: UI successfully injected into DOM.");
+      return true;
+    } catch (e) {
+      console.error("MeetSnap: Injection error:", e);
+      return false;
+    }
+  };
+
+  // Try immediate injection
+  if (!performInjection()) {
+    // If body not ready, use a MutationObserver to catch it
+    const observer = new MutationObserver(() => {
+      if (performInjection()) observer.disconnect();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    
+    // Fallback: poll for body just in case
+    const pollInterval = setInterval(() => {
+      if (performInjection()) clearInterval(pollInterval);
+    }, 500);
+    
+    // Safety: stop polling after 10 seconds
+    setTimeout(() => clearInterval(pollInterval), 10000);
+  }
+
   try {
     await loadSettingsAsync();
     console.log("MeetSnap: Settings loaded:", currentSettings);
-    injectFlashOverlay();
-    injectToastContainer();
-    injectFloatingUI();
-    console.log("MeetSnap: UI injected.");
     registerMessageListener();
     showOnboardingTooltipIfFirstRunAsync();
-    console.log("MeetSnap: Initialization complete.");
   } catch (error) {
-    console.error("MeetSnap: Initialization failed:", error);
+    console.error("MeetSnap: Context setup failed:", error);
   }
 }
 
@@ -114,6 +145,7 @@ async function persistSettingsAsync() {
 // ---------------------------------------------------------------------------
 
 function injectFlashOverlay() {
+  if (document.getElementById("meetsnap-flash")) return;
   flashOverlay = document.createElement("div");
   flashOverlay.id = "meetsnap-flash";
   flashOverlay.setAttribute("aria-hidden", "true");
@@ -121,6 +153,7 @@ function injectFlashOverlay() {
 }
 
 function injectToastContainer() {
+  if (document.getElementById("meetsnap-toast-container")) return;
   toastContainer = document.createElement("div");
   toastContainer.id = "meetsnap-toast-container";
   toastContainer.setAttribute("role", "status");
@@ -130,6 +163,8 @@ function injectToastContainer() {
 }
 
 function injectFloatingUI() {
+  if (document.getElementById("meetsnap-container")) return;
+  
   floatingContainer = document.createElement("div");
   floatingContainer.id = "meetsnap-container";
   floatingContainer.setAttribute("role", "toolbar");
@@ -211,8 +246,7 @@ async function triggerScreenshotAsync() {
       showToast(`Screenshot saved  ·  ${sessionState.screenshotCount} this session`, "success");
       broadcastSessionCountAsync(sessionState.screenshotCount);
 
-      // Auto Tiled Layout logic - move it AFTER successful capture for the NEXT one, 
-      // or we can keep it before if preferred, but let's make it async and not wait for it.
+      // Auto Tiled Layout logic
       if (currentSettings.autoTiledEnabled) {
         ensureTiledLayoutAsync().catch(e => console.debug("MeetSnap: Auto-tiled layout failed:", e));
       }
@@ -252,7 +286,6 @@ async function ensureTiledLayoutAsync() {
   
   if (!layoutBtn) {
     console.debug("MeetSnap: 'Change layout' option not found.");
-    // Try to close menu if we can find the backdrop or just wait
     return;
   }
   layoutBtn.click();
@@ -301,14 +334,16 @@ function recordScreenshotTimestamp() {
 // ---------------------------------------------------------------------------
 
 function hideButtonTemporarily() {
+  if (!screenshotButton) return;
   screenshotButton.classList.add("meetsnap-button--hidden");
 
   setTimeout(() => {
-    screenshotButton.classList.remove("meetsnap-button--hidden");
+    if (screenshotButton) screenshotButton.classList.remove("meetsnap-button--hidden");
   }, BUTTON_HIDE_DURATION_MS);
 }
 
 function triggerRippleEffect() {
+  if (!screenshotButton) return;
   // Remove the class first to allow the animation to re-trigger.
   screenshotButton.classList.remove("meetsnap-button--ripple");
   void screenshotButton.offsetWidth; // Force reflow to restart the animation.
@@ -320,6 +355,7 @@ function triggerRippleEffect() {
 // ---------------------------------------------------------------------------
 
 function triggerScreenFlash() {
+  if (!flashOverlay) return;
   flashOverlay.classList.remove("meetsnap-flash--active");
   void flashOverlay.offsetWidth; // Force reflow so the animation restarts.
   flashOverlay.classList.add("meetsnap-flash--active");
@@ -330,7 +366,7 @@ function triggerScreenFlash() {
  */
 async function playShutterSound() {
   try {
-    const SHUTTER_SOUND_B64 = "data:audio/mpeg;base64,SUQzBAAAAAABNVRYWFgAAAASAAADbWFqb3JfYnJhbmQAcXQgIABUWFhYAAAAEQAAA21pbm9yX3ZlcnNpb24AMABUWFhYAAAAGAAAA2NvbXBhdGlibGVfYnJhbmRzAHF0ICAAVFhYWAAAAC8AAANjb20uYXBwbGUucXVpY2t0aW1lLmF1dGhvcgBSZXBsYXlLaXRSZWNvcmRpbmcAVFNTRQAAAA8AAANMYXZmNTguNjcuMTAwAAAAAAAAAAAAAAD/+1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJbmZvAAAADwAAADAAAE8uAAcHDQ0SEhcXHR0iIicnLCwyMjc3PDxBQUdHR0xMUVFXV1xcYWFmZmxscXF2dnx8gYGGhoaLi5GRlpabm6Cgpqarq7Cwtra7u8DAxcXFy8vQ0NXV29vg4OXl6urw8PX1+vr//wAAAABMYXZjNTguMTIAAAAAAAAAAAAAAAAkAu0AAAAAAABPLsDaXqQAAAAAAAAAAAAAAAAAAAAA//uQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//uSZECP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU531LIO6MUPjnS6G80eC2kNJal5ziiViI5uoTnOUnETTjchEg40I7pOVTRoDoGieU5d0EHN9SGnTfnzpA6l//7kmRAj/AAAGkAAAAIAAANIAAAAQAAAaQAAAAgAAA0gAAABImfPU5NTz1gnCg5z41sOBBJZDioB6k5REsbOBGTgDXt06k0XhBkM+XNmT7iw0OzJjw59xvTj2LgN41bc0tG2DEJarMwdfg1nkjzdbC2OAkac3Ij9DCox0MyCkICM4ATQDP6hCA7cf7T4pm/Nt1zs4a37TVzIvMeE5szEQvDVsmcPIbJw5LjiDB7ROOmDbI8SG9DCEHrOQbT4OQ0XxOnATMhoGiYFACIRBwmWXL6Jkp1KMKXqYL7cJpzmMvcB6... [truncated]
+    const SHUTTER_SOUND_B64 = "data:audio/mpeg;base64,SUQzBAAAAAABNVRYWFgAAAASAAADbWFqb3JfYnJhbmQAcXQgIABUWFhYAAAAEQAAA21pbm9yX3ZlcnNpb24AMABUWFhYAAAAGAAAA2NvbXBhdGlibGVfYnJhbmRzAHF0ICAAVFhYWAAAAC8AAANjb20uYXBwbGUucXVpY2t0aW1lLmF1dGhvcgBSZXBsYXlLaXRSZWNvcmRpbmcAVFNTRQAAAA8AAANMYXZmNTguNjcuMTAwAAAAAAAAAAAAAAD/+1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJbmZvAAAADwAAADAAAE8uAAcHDQ0SEhcXHR0iIicnLCwyMjc3PDxBQUdHR0xMUVFXV1xcYWFmZmxscXF2dnx8gYGGhoaLi5GRlpabm6Cgpqarq7Cwtra7u8DAxcXFy8vQ0NXV29vg4OXl6urw8PX1+vr//wAAAABMYXZjNTguMTIAAAAAAAAAAAAAAAAkAu0AAAAAAABPLsDaXqQAAAAAAAAAAAAAAAAAAAAA//uQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//uSZECP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU531LIO6MUPjnS6G80eC2kNJal5ziiViI5uoTnOUnETTjchEg40I7pOVTRoDoGieU5d0EHN9SGnTfnzpA6l//7kmRAj/AAAGkAAAAIAAANIAAAAQAAAaQAAAAgAAA0gAAABImfPU5NTz1gnCg5z41sOBBJZDioB6k5REsbOBGTgDXt06k0XhBkM+XNmT7iw0OzJjw59xvTj2LgN41bc0tG2DEJarMwdfg1nkjzdbC2OAkac3Ij9DCox0MyCkICM4ATQDP6hCA7cf7T4pm/Nt1zs4a37TVzIvMeE5szEQvDVsmcPIbJw5LjiDB7ROOmDbI8SG9DCEHrOQbT4OQ0XxOnATMhoGiYFACIRBwmWXL6Jkp1KMKXqYL7cJpzmMvcB6... [truncated]";
 
     const audioResponse = await fetch(SHUTTER_SOUND_B64);
     const audioBlob = await audioResponse.blob();
@@ -358,6 +394,7 @@ async function playShutterSound() {
  * @param {"success" | "warning" | "error"} level  Controls border colour.
  */
 function showToast(message, level) {
+  if (!toastContainer) return;
   const toast = document.createElement("div");
   toast.className = `meetsnap-toast meetsnap-toast--${level}`;
   toast.textContent = message;
@@ -404,6 +441,7 @@ function showToast(message, level) {
 // ---------------------------------------------------------------------------
 
 function registerDragHandlers() {
+  if (!floatingContainer) return;
   floatingContainer.addEventListener("mousedown",  handleDragMouseDown);
   document.addEventListener("mousemove",           handleDragMouseMove);
   document.addEventListener("mouseup",             handleDragEnd);
@@ -469,6 +507,7 @@ function handleDragEnd() {
  * @param {number} pointerY
  */
 function translateContainerToPointer(pointerX, pointerY) {
+  if (!floatingContainer) return;
   const rawX = pointerX - sessionState.dragOffsetX;
   const rawY = pointerY - sessionState.dragOffsetY;
 
@@ -488,6 +527,7 @@ function translateContainerToPointer(pointerX, pointerY) {
  * @returns {Promise<void>}
  */
 async function snapToNearestEdgeAsync() {
+  if (!floatingContainer) return;
   const rect          = floatingContainer.getBoundingClientRect();
   const viewportWidth  = window.innerWidth;
   const viewportHeight = window.innerHeight;
@@ -533,7 +573,7 @@ async function restoreButtonPositionAsync() {
     chrome.storage.local.get(STORAGE_KEY_POSITION, (storedData) => {
       const savedPosition = storedData[STORAGE_KEY_POSITION];
 
-      if (savedPosition) {
+      if (savedPosition && floatingContainer) {
         floatingContainer.style.left   = `${savedPosition.x}px`;
         floatingContainer.style.top    = `${savedPosition.y}px`;
         floatingContainer.style.right  = "auto";
@@ -546,6 +586,7 @@ async function restoreButtonPositionAsync() {
 }
 
 function resetButtonToDefaultPosition() {
+  if (!floatingContainer) return;
   floatingContainer.style.right  = `${SNAP_EDGE_MARGIN_PX}px`;
   floatingContainer.style.bottom = `${SNAP_EDGE_MARGIN_PX}px`;
   floatingContainer.style.left   = "auto";
@@ -573,6 +614,7 @@ async function showOnboardingTooltipIfFirstRunAsync() {
 }
 
 function renderOnboardingTooltip() {
+  if (!floatingContainer) return;
   const tooltip = document.createElement("div");
   tooltip.className = "meetsnap-tooltip";
   tooltip.innerHTML = `

@@ -116,14 +116,14 @@ async function applyWatermarkAsync(imageDataUrl) {
 
   ctx.drawImage(bitmap, 0, 0);
 
-  // Styling: small, less visible (0.6 opacity)
-  const fontSize = Math.max(12, Math.floor(bitmap.height / 60));
-  const margin = Math.max(15, Math.floor(bitmap.width / 80));
+  // Styling: extra small, very subtle (0.4 opacity)
+  const fontSize = Math.max(10, Math.floor(bitmap.height / 75));
+  const margin = Math.max(12, Math.floor(bitmap.width / 90));
 
   ctx.font = `400 ${fontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
-  ctx.shadowBlur = 4;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+  ctx.shadowBlur = 3;
 
   const now = new Date();
   const dateStr = new Intl.DateTimeFormat("en-US", {
@@ -164,7 +164,7 @@ async function applyWatermarkAsync(imageDataUrl) {
   // Draw Logo
   const logoX = xEnd - brandWidth - logoSize - spacing;
   const logoY = yPos - (logoSize / 2);
-  ctx.globalAlpha = 0.6;
+  ctx.globalAlpha = 0.4; // Subtle logo
   ctx.drawImage(logoBitmap, logoX, logoY, logoSize, logoSize);
   ctx.globalAlpha = 1.0;
 
@@ -173,10 +173,12 @@ async function applyWatermarkAsync(imageDataUrl) {
   ctx.fillText(stampText, stampX, yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
+  
+  // Convert Blob to Data URL using FileReader (standard approach)
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Blob conversion failed"));
+    reader.onerror = () => reject(new Error("DataURL conversion failed"));
     reader.readAsDataURL(blobOut);
   });
 }
@@ -240,5 +242,5 @@ function isMeetUrl(url) {
 }
 
 function isDiagnosticConfigured() {
-  return DIAGNOSTIC_ENDPOINT.length > 0;
+  return DIAGNOSTIC_ENDPOINT && DIAGNOSTIC_ENDPOINT.length > 0;
 }
