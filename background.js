@@ -131,40 +131,44 @@ async function applyWatermarkAsync(imageDataUrl) {
   const logoSize = Math.floor(baseFontSize * 1.2);
   const spacing = Math.floor(baseFontSize * 0.4);
   
-  const xEnd = bitmap.width - margin;
-  const yPos = margin + baseFontSize;
+  // Placement: Bottom-Left with significant left margin (15-20% width)
+  const leftMargin = Math.floor(bitmap.width * 0.18); 
+  const bottomMargin = Math.max(20, Math.floor(bitmap.height / 50));
+  const yPos = bitmap.height - bottomMargin;
 
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
 
-  // 1. Draw "MeetSnap" (Subtle)
-  ctx.font = `500 ${baseFontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-  ctx.shadowBlur = 3;
-  ctx.fillText(brandText, xEnd, yPos);
-  const brandWidth = ctx.measureText(brandText).width;
-
-  // 2. Draw Logo (Subtle)
-  const logoX = xEnd - brandWidth - logoSize - spacing;
-  const logoY = yPos - (logoSize / 2);
-  ctx.globalAlpha = 0.4;
-  ctx.drawImage(logoBitmap, logoX, logoY, logoSize, logoSize);
-  ctx.globalAlpha = 1.0;
-
-  // 3. Draw " by" (Subtle)
-  const attributionX = logoX - spacing;
-  ctx.fillText(attributionText, attributionX, yPos);
-  const attributionWidth = ctx.measureText(attributionText).width;
-
-  // 4. Draw Dynamic Date/Time (More Visible and Slightly Larger)
-  const timestampX = attributionX - attributionWidth;
+  // 1. Draw Dynamic Date/Time (More Visible and Slightly Larger)
   const timestampFontSize = Math.floor(baseFontSize * 1.15);
   ctx.font = `600 ${timestampFontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
   ctx.fillStyle = "rgba(255, 255, 255, 0.85)"; // High visibility
   ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
   ctx.shadowBlur = 4;
-  ctx.fillText(timestampText, timestampX, yPos);
+  ctx.fillText(timestampText, leftMargin, yPos);
+  const timestampWidth = ctx.measureText(timestampText).width;
+
+  // 2. Draw " by" (Subtle)
+  const attributionX = leftMargin + timestampWidth;
+  ctx.font = `500 ${baseFontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+  ctx.shadowBlur = 3;
+  ctx.fillText(attributionText, attributionX, yPos);
+  const attributionWidth = ctx.measureText(attributionText).width;
+
+  // 3. Draw Logo (Subtle)
+  const logoSize = Math.floor(baseFontSize * 1.2);
+  const spacing = Math.floor(baseFontSize * 0.4);
+  const logoX = attributionX + attributionWidth + spacing;
+  const logoY = yPos - (logoSize / 2) - (baseFontSize / 6); // Centered with baseline
+  ctx.globalAlpha = 0.4;
+  ctx.drawImage(logoBitmap, logoX, logoY, logoSize, logoSize);
+  ctx.globalAlpha = 1.0;
+
+  // 4. Draw "MeetSnap" (Subtle)
+  const brandX = logoX + logoSize + spacing;
+  ctx.fillText(brandText, brandX, yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
   
