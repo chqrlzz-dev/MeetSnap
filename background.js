@@ -101,13 +101,9 @@ async function applyWatermarkAsync(imageDataUrl) {
 
   ctx.drawImage(bitmap, 0, 0);
 
-  const fontSize = Math.max(10, Math.floor(bitmap.height / 75));
-  const margin = Math.max(12, Math.floor(bitmap.width / 90));
-
-  ctx.font = `400 ${fontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-  ctx.shadowBlur = 3;
+  // Styling: date/time is larger and more visible; "by MeetSnap" stays subtle
+  const baseFontSize = Math.max(12, Math.floor(bitmap.height / 65));
+  const margin = Math.max(15, Math.floor(bitmap.width / 80));
 
   const now = new Date();
   const dateStr = new Intl.DateTimeFormat("en-US", {
@@ -121,34 +117,53 @@ async function applyWatermarkAsync(imageDataUrl) {
     hour12: true,
   }).format(now);
 
-  const stampText = `${dateStr} at ${timeStr} by`;
+  const timestampText = `${dateStr} at ${timeStr}`;
+  const attributionText = " by";
   const brandText = "MeetSnap";
   
+  // Load Logo
   const logoUrl = chrome.runtime.getURL("icons/icon128.png");
   const logoResponse = await fetch(logoUrl);
   const logoBlob = await logoResponse.blob();
   const logoBitmap = await createImageBitmap(logoBlob);
 
-  const logoSize = Math.floor(fontSize * 1.2);
-  const brandWidth = ctx.measureText(brandText).width;
-  const spacing = Math.floor(fontSize * 0.4);
+  const logoSize = Math.floor(baseFontSize * 1.2);
+  const spacing = Math.floor(baseFontSize * 0.4);
   
   const xEnd = bitmap.width - margin;
-  const yPos = margin + fontSize;
+  const yPos = margin + baseFontSize;
 
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
+  // 1. Draw "MeetSnap" (Subtle)
+  ctx.font = `500 ${baseFontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+  ctx.shadowBlur = 3;
   ctx.fillText(brandText, xEnd, yPos);
+  const brandWidth = ctx.measureText(brandText).width;
 
+  // 2. Draw Logo (Subtle)
   const logoX = xEnd - brandWidth - logoSize - spacing;
   const logoY = yPos - (logoSize / 2);
   ctx.globalAlpha = 0.4;
   ctx.drawImage(logoBitmap, logoX, logoY, logoSize, logoSize);
   ctx.globalAlpha = 1.0;
 
-  const stampX = logoX - spacing;
-  ctx.fillText(stampText, stampX, yPos);
+  // 3. Draw " by" (Subtle)
+  const attributionX = logoX - spacing;
+  ctx.fillText(attributionText, attributionX, yPos);
+  const attributionWidth = ctx.measureText(attributionText).width;
+
+  // 4. Draw Dynamic Date/Time (More Visible and Slightly Larger)
+  const timestampX = attributionX - attributionWidth;
+  const timestampFontSize = Math.floor(baseFontSize * 1.15);
+  ctx.font = `600 ${timestampFontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)"; // High visibility
+  ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+  ctx.shadowBlur = 4;
+  ctx.fillText(timestampText, timestampX, yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
   
