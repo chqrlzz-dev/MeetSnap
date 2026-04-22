@@ -55,12 +55,15 @@ async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   
   let imageDataUrl;
   try {
-    // Passing null instead of tab.windowId is more permissive in many Chrome versions
-    imageDataUrl = await captureVisibleTabAsync(null);
+    // Explicitly targeting the window of the tab that sent the request
+    imageDataUrl = await captureVisibleTabAsync(tab.windowId);
     console.log("[MeetSnap Debug] Step 1: Raw capture successful.");
   } catch (e) {
     console.error("[MeetSnap Debug] Step 1: Raw capture FAILED.", e);
-    throw new Error(`Capture failed at source: ${e.message}. Please check "Site Access" in extension settings.`);
+    
+    // Provide extremely descriptive guidance for the permission error
+    const detailedMsg = `Capture failed: ${e.message}. \n\nTO FIX THIS: \n1. Click the puzzle piece icon (Extensions) in your toolbar. \n2. Click "Manage Extensions". \n3. Find MeetSnap and click "Details". \n4. Ensure "Allow in Incognito" is ON (if applicable) and "Site Access" is set to "On all sites".`;
+    throw new Error(detailedMsg);
   }
 
   const filename = buildScreenshotFilename();
@@ -182,7 +185,8 @@ async function applyWatermarkAsync(imageDataUrl) {
 
 async function captureVisibleTabAsync(windowId) {
   return new Promise((resolve, reject) => {
-    // If windowId is null, it captures the current window's active tab
+    // If windowId is null, it captures the current window's active tab.
+    // However, explicitly passing tab.windowId is more precise for multi-window setups.
     chrome.tabs.captureVisibleTab(windowId, { format: SCREENSHOT_IMAGE_FORMAT }, (dataUrl) => {
       const error = chrome.runtime.lastError;
       if (error) {
