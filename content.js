@@ -157,10 +157,6 @@ async function triggerScreenshotAsync() {
   recordScreenshotTimestamp();
   hideButtonTemporarily();
 
-  if (currentSettings.shutterSoundEnabled) {
-    playSyntheticShutterSound();
-  }
-
   if (currentSettings.visualFlashEnabled) {
     triggerScreenFlash();
   }
@@ -168,6 +164,7 @@ async function triggerScreenshotAsync() {
   triggerRippleEffect();
 
   try {
+    console.debug("MeetSnap: Sending capture request...");
     const result = await chrome.runtime.sendMessage({
       action:         "captureScreenshot",
       meetUrl:        window.location.href,
@@ -180,58 +177,14 @@ async function triggerScreenshotAsync() {
       broadcastSessionCountAsync(sessionState.screenshotCount);
 
       if (currentSettings.autoTiledEnabled) {
-        ensureTiledLayoutAsync().catch(e => console.debug("MeetSnap: Auto-tiled layout failed:", e));
+        ensureTiledLayoutAsync().catch(e => console.debug("MeetSnap: Auto-tiled failed:", e));
       }
     } else {
-      const errorMsg = result ? result.errorMessage : "No response from background script";
-      console.error("MeetSnap: Capture pipeline failed:", result);
+      const errorMsg = result ? result.errorMessage : "Capture blocked.";
       showToast(errorMsg, "error");
     }
   } catch (error) {
-    console.error("MeetSnap: Message error:", error);
-    showToast(`Capture failed: ${error.message}. Please refresh the page and try again.`, "error");
-  }
-}
-
-/**
- * Robust audio: Synthesizes a shutter sound using Web Audio API.
- * This bypasses CSP media-src/fetch blocks entirely.
- */
-function playSyntheticShutterSound() {
-  try {
-    const context = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // Create a noise-based burst
-    const bufferSize = context.sampleRate * 0.1;
-    const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
-    const data = buffer.getChannelData(0);
-    
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-
-    const noise = context.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = context.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 1000;
-
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.3, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.1);
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(context.destination);
-
-    noise.start();
-    noise.stop(context.currentTime + 0.1);
-    
-    // Close context after playback
-    setTimeout(() => context.close(), 200);
-  } catch (e) {
-    console.debug("MeetSnap: Audio synth failed", e);
+    showToast("Refresh Google Meet to enable capture.", "error");
   }
 }
 
@@ -253,8 +206,6 @@ async function ensureTiledLayoutAsync() {
   const closeBtn = document.querySelector('[aria-label="Close"], [data-tooltip="Close"]');
   if (closeBtn) closeBtn.click();
   else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
-  
-  await new Promise(r => setTimeout(r, 400));
 }
 
 function isRateLimited() {
@@ -297,7 +248,7 @@ function showToast(message, level) {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message).then(() => {
       const originalText = toast.textContent;
-      toast.textContent = "Copied to clipboard!";
+      toast.textContent = "Copied!";
       setTimeout(() => { if (toast.parentNode) toast.textContent = originalText; }, 1000);
     });
   };
@@ -370,19 +321,15 @@ async function snapToNearestEdgeAsync() {
 
   floatingContainer.style.left = `${snappedX}px`;
   floatingContainer.style.top  = `${snappedY}px`;
-  await persistButtonPositionAsync(snappedX, snappedY);
-}
-
-async function persistButtonPositionAsync(x, y) {
-  chrome.storage.local.set({ [STORAGE_KEY_POSITION]: { x, y } });
+  chrome.storage.local.set({ [STORAGE_KEY_POSITION]: { x: snappedX, y: snappedY } });
 }
 
 async function restoreButtonPositionAsync() {
   chrome.storage.local.get(STORAGE_KEY_POSITION, (storedData) => {
-    const savedPosition = storedData[STORAGE_KEY_POSITION];
-    if (savedPosition && floatingContainer) {
-      floatingContainer.style.left = `${savedPosition.x}px`;
-      floatingContainer.style.top  = `${savedPosition.y}px`;
+    const pos = storedData[STORAGE_KEY_POSITION];
+    if (pos && floatingContainer) {
+      floatingContainer.style.left = `${pos.x}px`;
+      floatingContainer.style.top  = `${pos.y}px`;
       floatingContainer.style.right = "auto";
       floatingContainer.style.bottom = "auto";
     }
@@ -432,14 +379,11 @@ function registerMessageListener() {
     if (message.action === "resetButtonPosition") resetButtonToDefaultPosition();
     if (message.action === "updateSettings") {
       currentSettings = { ...currentSettings, ...message.settings };
-      persistSettingsAsync();
     }
     if (message.action === "requestSessionCount") broadcastSessionCountAsync(sessionState.screenshotCount);
   });
 }
 
 async function broadcastSessionCountAsync(count) {
-  try {
-    await chrome.runtime.sendMessage({ action: "sessionCountUpdate", count });
-  } catch {}
+  try { await chrome.runtime.sendMessage({ action: "sessionCountUpdate", count }); } catch {}
 }
