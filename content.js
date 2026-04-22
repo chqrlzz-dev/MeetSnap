@@ -252,7 +252,8 @@ async function triggerScreenshotAsync() {
       }
     } else {
       const errorMsg = result ? result.errorMessage : "No response from background script";
-      showToast(`Capture failed: ${errorMsg}`, "error");
+      console.error("MeetSnap: Capture failed.", result);
+      showToast(`Error: ${errorMsg}. Try checking "Site Access" in extension settings.`, "error");
     }
   } catch (error) {
     if (error.message.includes("Extension context invalidated")) {

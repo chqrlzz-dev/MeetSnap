@@ -1,25 +1,12 @@
 // =============================================================================
 // MeetSnap — Background Service Worker
 // Handles screenshot capture, auto-download, and diagnostic delivery.
-//
-// This file runs as a Manifest V3 service worker and has no DOM access.
-// All user-facing feedback is delegated to content.js via message passing.
 // =============================================================================
 
-// ---------------------------------------------------------------------------
-// Configuration
-// DIAGNOSTIC_ENDPOINT is used for optional session quality analysis.
-// ---------------------------------------------------------------------------
-
 const DIAGNOSTIC_ENDPOINT = "";
-
 const SCREENSHOT_IMAGE_FORMAT = "png";
 const SCREENSHOT_MIME_TYPE = "image/png";
 const SCREENSHOT_FILENAME_PREFIX = "google-meet";
-
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
@@ -27,85 +14,83 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Message routing
-// All inbound requests from popup.js and content.js are dispatched here.
-// ---------------------------------------------------------------------------
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log(`[MeetSnap Debug] Message received: ${message.action}`, { 
+    senderTabId: sender.tab?.id, 
+    senderUrl: sender.tab?.url 
+  });
+
   if (message.action === "captureScreenshot") {
     handleScreenshotRequestAsync(
       sender.tab,
       message.meetUrl,
       message.diagnosticEnabled,
     )
-      .then((result) => sendResponse(result))
-      .catch((error) =>
-        sendResponse({ success: false, errorMessage: error.message }),
-      );
+      .then((result) => {
+        console.log("[MeetSnap Debug] Capture pipeline result:", result);
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error("[MeetSnap Debug] Capture pipeline FATAL ERROR:", error);
+        sendResponse({ success: false, errorMessage: error.message, stack: error.stack });
+      });
 
-    // Must return true so the message channel stays open for the async response.
     return true;
   }
 });
 
-// ---------------------------------------------------------------------------
-// Keyboard shortcut forwarding
-// ---------------------------------------------------------------------------
-
 chrome.commands.onCommand.addListener((command) => {
+  console.log(`[MeetSnap Debug] Command received: ${command}`);
   if (command === "capture-screenshot") {
     forwardShortcutToActiveTabAsync();
   }
 });
 
-// ---------------------------------------------------------------------------
-// Screenshot pipeline
-// ---------------------------------------------------------------------------
-
-/**
- * Orchestrates the full screenshot lifecycle:
- *   1. Capture the visible tab
- *   2. Download the PNG to disk silently
- *   3. Optionally send diagnostic data
- *
- * @param {chrome.tabs.Tab} tab              The tab that sent the request.
- * @param {string}          meetUrl          The Google Meet URL at capture time.
- * @param {boolean}         diagnosticEnabled   Whether to forward the metadata for diagnostics.
- * @returns {Promise<{ success: boolean, filename?: string, errorMessage?: string }>}
- */
 async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
-  console.log("MeetSnap: Handling capture request for tab:", tab.id);
-  let imageDataUrl = await captureVisibleTabAsync(null);
+  if (!tab) {
+    throw new Error("Internal Error: Sender tab context is missing.");
+  }
+
+  console.log(`[MeetSnap Debug] Starting capture lifecycle for Window: ${tab.windowId}, Tab: ${tab.id}`);
+  
+  let imageDataUrl;
+  try {
+    imageDataUrl = await captureVisibleTabAsync(tab.windowId);
+    console.log("[MeetSnap Debug] Step 1: Raw capture successful.");
+  } catch (e) {
+    console.error("[MeetSnap Debug] Step 1: Raw capture FAILED.", e);
+    throw new Error(`Capture failed at source: ${e.message}. Please check "Site Access" in extension settings.`);
+  }
+
   const filename = buildScreenshotFilename();
 
   try {
-    console.log("MeetSnap: Applying watermark...");
+    console.log("[MeetSnap Debug] Step 2: Applying watermark...");
     imageDataUrl = await applyWatermarkAsync(imageDataUrl);
-    console.log("MeetSnap: Watermark applied.");
+    console.log("[MeetSnap Debug] Step 2: Watermark applied.");
   } catch (error) {
-    console.error("MeetSnap: Failed to apply watermark —", error.message);
+    console.warn("[MeetSnap Debug] Step 2: Watermark FAILED (non-fatal):", error.message);
   }
 
-  console.log("MeetSnap: Downloading screenshot...");
-  await downloadScreenshotAsync(imageDataUrl, filename);
+  try {
+    console.log(`[MeetSnap Debug] Step 3: Triggering download: ${filename}`);
+    await downloadScreenshotAsync(imageDataUrl, filename);
+    console.log("[MeetSnap Debug] Step 3: Download triggered successfully.");
+  } catch (e) {
+    console.error("[MeetSnap Debug] Step 3: Download FAILED.", e);
+    throw new Error(`Download failed: ${e.message}`);
+  }
 
   if (diagnosticEnabled && isDiagnosticConfigured()) {
+    console.log("[MeetSnap Debug] Step 4: Dispatching diagnostic data...");
     sendDiagnosticDataAsync(imageDataUrl, filename, meetUrl).catch((error) =>
-      console.warn("MeetSnap: Diagnostic delivery failed —", error.message)
+      console.warn("[MeetSnap Debug] Step 4: Diagnostic delivery FAILED:", error.message)
     );
   }
 
   return { success: true, filename };
 }
 
-/**
- * Applies the MeetSnap watermark and timestamp to the captured image.
- * Format: "June 18, 2026 at 12:45 PM by [logo] MeetSnap"
- *
- * @param {string} imageDataUrl
- * @returns {Promise<string>}
- */
 async function applyWatermarkAsync(imageDataUrl) {
   const response = await fetch(imageDataUrl);
   const blob = await response.blob();
@@ -116,7 +101,6 @@ async function applyWatermarkAsync(imageDataUrl) {
 
   ctx.drawImage(bitmap, 0, 0);
 
-  // Styling: extra small, very subtle (0.4 opacity)
   const fontSize = Math.max(10, Math.floor(bitmap.height / 75));
   const margin = Math.max(12, Math.floor(bitmap.width / 90));
 
@@ -140,41 +124,34 @@ async function applyWatermarkAsync(imageDataUrl) {
   const stampText = `${dateStr} at ${timeStr} by`;
   const brandText = "MeetSnap";
   
-  // Load Logo
   const logoUrl = chrome.runtime.getURL("icons/icon128.png");
   const logoResponse = await fetch(logoUrl);
   const logoBlob = await logoResponse.blob();
   const logoBitmap = await createImageBitmap(logoBlob);
 
   const logoSize = Math.floor(fontSize * 1.2);
-  const stampWidth = ctx.measureText(stampText).width;
   const brandWidth = ctx.measureText(brandText).width;
   const spacing = Math.floor(fontSize * 0.4);
   
-  // Placement: Top-Right (less likely to interfere with Meet controls)
   const xEnd = bitmap.width - margin;
   const yPos = margin + fontSize;
 
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
-  // Draw "MeetSnap"
   ctx.fillText(brandText, xEnd, yPos);
 
-  // Draw Logo
   const logoX = xEnd - brandWidth - logoSize - spacing;
   const logoY = yPos - (logoSize / 2);
-  ctx.globalAlpha = 0.4; // Subtle logo
+  ctx.globalAlpha = 0.4;
   ctx.drawImage(logoBitmap, logoX, logoY, logoSize, logoSize);
   ctx.globalAlpha = 1.0;
 
-  // Draw Date/Time "by"
   const stampX = logoX - spacing;
   ctx.fillText(stampText, stampX, yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
   
-  // Convert Blob to Data URL using FileReader (standard approach)
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
@@ -183,11 +160,20 @@ async function applyWatermarkAsync(imageDataUrl) {
   });
 }
 
-async function captureVisibleTabAsync() {
+async function captureVisibleTabAsync(windowId) {
   return new Promise((resolve, reject) => {
-    chrome.tabs.captureVisibleTab(null, { format: SCREENSHOT_IMAGE_FORMAT }, (dataUrl) => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-      else resolve(dataUrl);
+    // If windowId is null, it captures the current window's active tab
+    chrome.tabs.captureVisibleTab(windowId, { format: SCREENSHOT_IMAGE_FORMAT }, (dataUrl) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.error("[MeetSnap Debug] chrome.tabs.captureVisibleTab error:", error.message);
+        reject(new Error(error.message));
+      } else if (!dataUrl) {
+        console.error("[MeetSnap Debug] captureVisibleTab returned empty dataUrl");
+        reject(new Error("Captured image is empty."));
+      } else {
+        resolve(dataUrl);
+      }
     });
   });
 }
@@ -200,8 +186,13 @@ async function downloadScreenshotAsync(imageDataUrl, filename) {
       saveAs: false,
       conflictAction: "uniquify",
     }, (id) => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-      else resolve(id);
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.error("[MeetSnap Debug] chrome.downloads.download error:", error.message);
+        reject(new Error(error.message));
+      } else {
+        resolve(id);
+      }
     });
   });
 }
@@ -221,9 +212,14 @@ async function sendDiagnosticDataAsync(imageDataUrl, filename, meetUrl) {
 
 function buildScreenshotFilename() {
   const now = new Date();
-  const date = now.toISOString().split("T")[0];
-  const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
-  return `${SCREENSHOT_FILENAME_PREFIX}-${date}_${time}.${SCREENSHOT_IMAGE_FORMAT}`;
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+
+  return `${SCREENSHOT_FILENAME_PREFIX}-${year}-${month}-${day}_${hours}-${minutes}-${seconds}.${SCREENSHOT_IMAGE_FORMAT}`;
 }
 
 async function forwardShortcutToActiveTabAsync() {
@@ -234,7 +230,9 @@ async function forwardShortcutToActiveTabAsync() {
         if (chrome.runtime.lastError) { /* ignore */ }
       });
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("[MeetSnap Debug] Failed to forward shortcut:", e);
+  }
 }
 
 function isMeetUrl(url) {
