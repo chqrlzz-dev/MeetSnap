@@ -55,7 +55,8 @@ async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   
   let imageDataUrl;
   try {
-    imageDataUrl = await captureVisibleTabAsync(tab.windowId);
+    // Passing null instead of tab.windowId is more permissive in many Chrome versions
+    imageDataUrl = await captureVisibleTabAsync(null);
     console.log("[MeetSnap Debug] Step 1: Raw capture successful.");
   } catch (e) {
     console.error("[MeetSnap Debug] Step 1: Raw capture FAILED.", e);
