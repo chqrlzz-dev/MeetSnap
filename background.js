@@ -55,15 +55,21 @@ async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   
   let imageDataUrl;
   try {
-    // Explicitly targeting the window of the tab that sent the request
-    imageDataUrl = await captureVisibleTabAsync(tab.windowId);
-    console.log("[MeetSnap Debug] Step 1: Raw capture successful.");
+    // Try capturing without windowId first (defaults to current window, often more permissive)
+    console.log("[MeetSnap Debug] Step 1a: Attempting default capture...");
+    imageDataUrl = await captureVisibleTabAsync(null);
+    console.log("[MeetSnap Debug] Step 1a: Default capture successful.");
   } catch (e) {
-    console.error("[MeetSnap Debug] Step 1: Raw capture FAILED.", e);
-    
-    // Provide extremely descriptive guidance for the permission error
-    const detailedMsg = `Capture failed: ${e.message}. \n\nTO FIX THIS: \n1. Click the puzzle piece icon (Extensions) in your toolbar. \n2. Click "Manage Extensions". \n3. Find MeetSnap and click "Details". \n4. Ensure "Allow in Incognito" is ON (if applicable) and "Site Access" is set to "On all sites".`;
-    throw new Error(detailedMsg);
+    console.warn("[MeetSnap Debug] Step 1a failed, trying Step 1b (explicit windowId)...", e.message);
+    try {
+      imageDataUrl = await captureVisibleTabAsync(tab.windowId);
+      console.log("[MeetSnap Debug] Step 1b: Explicit capture successful.");
+    } catch (e2) {
+      console.error("[MeetSnap Debug] Step 1b FAILED.", e2);
+      
+      const detailedMsg = `Capture failed: ${e2.message}. \n\nTO FIX THIS: \n1. Click the "Details" button in chrome://extensions for MeetSnap. \n2. Ensure "Site Access" is set to "On all sites". \n3. If using multiple windows, ensure the Meet window is focused.`;
+      throw new Error(detailedMsg);
+    }
   }
 
   const filename = buildScreenshotFilename();
