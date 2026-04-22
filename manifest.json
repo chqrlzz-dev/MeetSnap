@@ -3,13 +3,14 @@
   "name": "MeetSnap — Google Meet Screenshot",
   "short_name": "MeetSnap",
   "description": "Capture and auto-download Google Meet screenshots with smart watermarking and diagnostic insights.",
-  "version": "1.0.3",
+  "version": "1.0.4",
 
   "permissions": [
     "tabs",
     "activeTab",
     "downloads",
-    "storage"
+    "storage",
+    "https://meet.google.com/*"
   ],
 
   "host_permissions": [

@@ -76,7 +76,7 @@ chrome.commands.onCommand.addListener((command) => {
  */
 async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   console.log("MeetSnap: Handling capture request for tab:", tab.id);
-  let imageDataUrl = await captureVisibleTabAsync(tab.windowId);
+  let imageDataUrl = await captureVisibleTabAsync(null);
   const filename = buildScreenshotFilename();
 
   try {
@@ -183,9 +183,9 @@ async function applyWatermarkAsync(imageDataUrl) {
   });
 }
 
-async function captureVisibleTabAsync(windowId) {
+async function captureVisibleTabAsync() {
   return new Promise((resolve, reject) => {
-    chrome.tabs.captureVisibleTab(windowId, { format: SCREENSHOT_IMAGE_FORMAT }, (dataUrl) => {
+    chrome.tabs.captureVisibleTab(null, { format: SCREENSHOT_IMAGE_FORMAT }, (dataUrl) => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
       else resolve(dataUrl);
     });
