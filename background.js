@@ -77,8 +77,15 @@ chrome.commands.onCommand.addListener((command) => {
  * @returns {Promise<{ success: boolean, filename?: string, errorMessage?: string }>}
  */
 async function handleScreenshotRequestAsync(tab, meetUrl, webhookEnabled) {
-  const imageDataUrl = await captureVisibleTabAsync(tab.windowId);
+  let imageDataUrl = await captureVisibleTabAsync(tab.windowId);
   const filename = buildScreenshotFilename();
+
+  try {
+    imageDataUrl = await applyWatermarkAsync(imageDataUrl);
+  } catch (error) {
+    console.warn("MeetSnap: Failed to apply watermark —", error.message);
+    // Continue with original image if watermarking fails
+  }
 
   await downloadScreenshotAsync(imageDataUrl, filename);
 
@@ -93,6 +100,90 @@ async function handleScreenshotRequestAsync(tab, meetUrl, webhookEnabled) {
   }
 
   return { success: true, filename };
+}
+
+/**
+ * Applies a date/time stamp and "Captured by MeetSnap" watermark with logo to the image.
+ *
+ * @param {string} imageDataUrl   Original base64 PNG data URL.
+ * @returns {Promise<string>}     Watermarked base64 PNG data URL.
+ */
+async function applyWatermarkAsync(imageDataUrl) {
+  const response = await fetch(imageDataUrl);
+  const blob = await response.blob();
+  const bitmap = await createImageBitmap(blob);
+
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = canvas.getContext("2d");
+
+  // 1. Draw original image
+  ctx.drawImage(bitmap, 0, 0);
+
+  // 2. Configure styles
+  // We use a responsive font size relative to the image height.
+  const fontSize = Math.max(16, Math.floor(bitmap.height / 45));
+  const margin = Math.max(20, Math.floor(bitmap.width / 60));
+
+  ctx.font = `500 ${fontSize}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  // 3. Draw Date/Time Stamp (Top-Left)
+  const now = new Date();
+  const datePart = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(now);
+  const timePart = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(now);
+  const fullStamp = `${datePart} at ${timePart}`;
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(fullStamp, margin, margin);
+
+  // 4. Draw "Captured by MeetSnap" with Logo (Bottom-Right)
+  const watermarkText = "Captured by MeetSnap";
+  
+  // Load Logo
+  const logoUrl = chrome.runtime.getURL("icons/icon128.png");
+  const logoResponse = await fetch(logoUrl);
+  const logoBlob = await logoResponse.blob();
+  const logoBitmap = await createImageBitmap(logoBlob);
+
+  const logoSize = Math.floor(fontSize * 1.4);
+  const textWidth = ctx.measureText(watermarkText).width;
+  
+  const bottomX = bitmap.width - margin;
+  const bottomY = bitmap.height - margin;
+
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(watermarkText, bottomX, bottomY);
+
+  // Draw logo to the left of the text
+  const logoX = bottomX - textWidth - logoSize - Math.floor(fontSize * 0.4);
+  const logoY = bottomY - logoSize + Math.floor(fontSize * 0.15); // Fine-tune vertical alignment
+  
+  ctx.shadowBlur = 4; // Slightly softer shadow for the logo
+  ctx.drawImage(logoBitmap, logoX, logoY, logoSize, logoSize);
+
+  // 5. Export back to data URL
+  const blobOut = await canvas.convertToBlob({ type: "image/png" });
+  
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Failed to convert blob to data URL"));
+    reader.readAsDataURL(blobOut);
+  });
 }
 
 /**

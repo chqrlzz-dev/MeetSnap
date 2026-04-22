@@ -43,6 +43,7 @@ website or browser tab.
 | Floating button | Draggable, snap-to-edge, position remembered |
 | Shutter sound | Web Audio API synthesis — no audio files required |
 | Screen flash | Full-viewport white burst on capture |
+| Smart Watermark | Dynamic date, time, and logo overlay on every photo |
 | Toast notifications | Success, warning, and error feedback |
 | Discord webhook | Optional — user-toggleable — fully disclosed |
 | Rate limiting | Max 1 screenshot per 2 seconds |
