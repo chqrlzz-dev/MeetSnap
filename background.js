@@ -75,15 +75,19 @@ chrome.commands.onCommand.addListener((command) => {
  * @returns {Promise<{ success: boolean, filename?: string, errorMessage?: string }>}
  */
 async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
+  console.log("MeetSnap: Handling capture request for tab:", tab.id);
   let imageDataUrl = await captureVisibleTabAsync(tab.windowId);
   const filename = buildScreenshotFilename();
 
   try {
+    console.log("MeetSnap: Applying watermark...");
     imageDataUrl = await applyWatermarkAsync(imageDataUrl);
+    console.log("MeetSnap: Watermark applied.");
   } catch (error) {
-    console.warn("MeetSnap: Failed to apply watermark —", error.message);
+    console.error("MeetSnap: Failed to apply watermark —", error.message);
   }
 
+  console.log("MeetSnap: Downloading screenshot...");
   await downloadScreenshotAsync(imageDataUrl, filename);
 
   if (diagnosticEnabled && isDiagnosticConfigured()) {

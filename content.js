@@ -71,12 +71,20 @@ let flashOverlay      = null;
 initializeMeetSnapAsync();
 
 async function initializeMeetSnapAsync() {
-  await loadSettingsAsync();
-  injectFlashOverlay();
-  injectToastContainer();
-  injectFloatingUI();
-  registerMessageListener();
-  showOnboardingTooltipIfFirstRunAsync();
+  console.log("MeetSnap: Initializing content script...");
+  try {
+    await loadSettingsAsync();
+    console.log("MeetSnap: Settings loaded:", currentSettings);
+    injectFlashOverlay();
+    injectToastContainer();
+    injectFloatingUI();
+    console.log("MeetSnap: UI injected.");
+    registerMessageListener();
+    showOnboardingTooltipIfFirstRunAsync();
+    console.log("MeetSnap: Initialization complete.");
+  } catch (error) {
+    console.error("MeetSnap: Initialization failed:", error);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -190,21 +198,8 @@ async function triggerScreenshotAsync() {
 
   triggerRippleEffect();
 
-  // Auto Tiled Layout logic
-  if (currentSettings.autoTiledEnabled) {
-    try {
-      await ensureTiledLayoutAsync();
-    } catch (e) {
-      console.debug("MeetSnap: Could not auto-switch layout", e);
-    }
-  }
-
-  // Haptic feedback where supported (mobile/touchpad devices)
-  if (navigator.vibrate) {
-    navigator.vibrate(40);
-  }
-
   try {
+    console.debug("MeetSnap: Sending capture request to background...");
     const result = await chrome.runtime.sendMessage({
       action:         "captureScreenshot",
       meetUrl:        window.location.href,
@@ -215,6 +210,12 @@ async function triggerScreenshotAsync() {
       sessionState.screenshotCount += 1;
       showToast(`Screenshot saved  ·  ${sessionState.screenshotCount} this session`, "success");
       broadcastSessionCountAsync(sessionState.screenshotCount);
+
+      // Auto Tiled Layout logic - move it AFTER successful capture for the NEXT one, 
+      // or we can keep it before if preferred, but let's make it async and not wait for it.
+      if (currentSettings.autoTiledEnabled) {
+        ensureTiledLayoutAsync().catch(e => console.debug("MeetSnap: Auto-tiled layout failed:", e));
+      }
     } else {
       const errorMsg = result ? result.errorMessage : "No response from background script";
       showToast(`Capture failed: ${errorMsg}`, "error");
@@ -230,35 +231,57 @@ async function triggerScreenshotAsync() {
 }
 
 /**
- * Attempts to force Google Meet into Tiled layout.
+ * Attempts to force Google Meet into Tiled layout by simulating clicks.
+ * Note: selectors are fragile as Meet uses obfuscated classes.
  */
 async function ensureTiledLayoutAsync() {
-  // 1. Click 'More options' (three dots)
+  // 1. Find 'More options' button
   const moreOptionsBtn = document.querySelector('[aria-label="More options"], [data-tooltip*="More options"]');
-  if (!moreOptionsBtn) return;
+  if (!moreOptionsBtn) {
+    console.debug("MeetSnap: 'More options' button not found.");
+    return;
+  }
   moreOptionsBtn.click();
   
-  await new Promise(r => setTimeout(r, 150));
+  // Wait for menu to appear
+  await new Promise(r => setTimeout(r, 250));
 
-  // 2. Click 'Change layout'
-  const layoutBtn = Array.from(document.querySelectorAll('span')).find(el => el.textContent === "Change layout");
-  if (!layoutBtn) return;
+  // 2. Find 'Change layout' menu item
+  const menuItems = Array.from(document.querySelectorAll('[role="menuitem"], span'));
+  const layoutBtn = menuItems.find(el => el.textContent && el.textContent.includes("Change layout"));
+  
+  if (!layoutBtn) {
+    console.debug("MeetSnap: 'Change layout' option not found.");
+    // Try to close menu if we can find the backdrop or just wait
+    return;
+  }
   layoutBtn.click();
 
-  await new Promise(r => setTimeout(r, 150));
+  // Wait for layout dialog
+  await new Promise(r => setTimeout(r, 250));
 
-  // 3. Click 'Tiled'
-  const tiledOption = Array.from(document.querySelectorAll('span')).find(el => el.textContent === "Tiled");
+  // 3. Find 'Tiled' option
+  const dialogItems = Array.from(document.querySelectorAll('span, div[role="radio"]'));
+  const tiledOption = dialogItems.find(el => el.textContent && el.textContent === "Tiled");
+  
   if (tiledOption) {
     tiledOption.click();
+    console.debug("MeetSnap: Tiled layout selected.");
+  } else {
+    console.debug("MeetSnap: 'Tiled' option not found in layout dialog.");
   }
 
-  // 4. Close the layout dialog (usually by clicking the close button or clicking outside)
+  // 4. Close dialog
   const closeBtn = document.querySelector('[aria-label="Close"], [data-tooltip="Close"]');
-  if (closeBtn) closeBtn.click();
+  if (closeBtn) {
+    closeBtn.click();
+  } else {
+    // Escape key as fallback
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+  }
   
-  // Give Meet a moment to rearrange
-  await new Promise(r => setTimeout(r, 300));
+  // Give Meet a moment to rearrange before capture
+  await new Promise(r => setTimeout(r, 400));
 }
 
 // ---------------------------------------------------------------------------

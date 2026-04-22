@@ -25,7 +25,7 @@ const toggleAutoHide          = document.getElementById("toggle-auto-hide");
 const toggleShutterSound      = document.getElementById("toggle-shutter-sound");
 const toggleVisualFlash       = document.getElementById("toggle-visual-flash");
 const toggleAutoTiled         = document.getElementById("toggle-auto-tiled");
-const togglediagnostic        = document.getElementById("toggle-diagnostic");
+const toggleDiagnostic        = document.getElementById("toggle-diagnostic");
 
 // ---------------------------------------------------------------------------
 // Popup initialisation
@@ -136,11 +136,11 @@ function applySettingsToToggles(settings) {
   toggleShutterSound.checked  = settings.shutterSoundEnabled;
   toggleVisualFlash.checked   = settings.visualFlashEnabled;
   toggleAutoTiled.checked      = settings.autoTiledEnabled;
-  togglediagnostic.checked    = settings.diagnosticEnabled;
+  toggleDiagnostic.checked    = settings.diagnosticEnabled;
 }
 
-function updatePrivacyNoticeVisibility(isdiagnosticEnabled) {
-  if (isdiagnosticEnabled) {
+function updatePrivacyNoticeVisibility(isDiagnosticEnabled) {
+  if (isDiagnosticEnabled) {
     privacyNoticeElement.classList.remove("hidden");
   } else {
     privacyNoticeElement.classList.add("hidden");
@@ -168,7 +168,7 @@ function registerActiveTabEventListeners(meetTabId) {
   toggleShutterSound.addEventListener("change", () => handleToggleChange(meetTabId));
   toggleVisualFlash.addEventListener("change",  () => handleToggleChange(meetTabId));
   toggleAutoTiled.addEventListener("change",    () => handleToggleChange(meetTabId));
-  togglediagnostic.addEventListener("change",   () => handleToggleChange(meetTabId));
+  toggleDiagnostic.addEventListener("change",   () => handleToggleChange(meetTabId));
 }
 
 /**
@@ -183,7 +183,7 @@ async function handleToggleChange(meetTabId) {
     shutterSoundEnabled: toggleShutterSound.checked,
     visualFlashEnabled:  toggleVisualFlash.checked,
     autoTiledEnabled:    toggleAutoTiled.checked,
-    diagnosticEnabled:   togglediagnostic.checked
+    diagnosticEnabled:   toggleDiagnostic.checked
   };
 
   updatePrivacyNoticeVisibility(updatedSettings.diagnosticEnabled);
