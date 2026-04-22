@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "MeetSnap — Google Meet Screenshot",
   "short_name": "MeetSnap",
-  "description": "Capture, auto-download, and optionally send Google Meet screenshots to a Discord webhook for review and moderation.",
-  "version": "1.0.0",
+  "description": "Capture and auto-download Google Meet screenshots with smart watermarking and diagnostic insights.",
+  "version": "1.0.1",
 
   "permissions": [
     "tabs",
@@ -13,9 +13,7 @@
   ],
 
   "host_permissions": [
-    "<all_urls>",
-    "https://meet.google.com/*",
-    "https://discord.com/*"
+    "https://meet.google.com/*"
   ],
 
   "background": {

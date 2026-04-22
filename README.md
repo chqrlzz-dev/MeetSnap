@@ -1,7 +1,6 @@
 # MeetSnap — Google Meet Screenshot Extension
 
-> Capture, auto-download, and optionally forward Google Meet screenshots to
-> a Discord webhook for review and moderation.
+> Capture and auto-download Google Meet screenshots with smart watermarking and diagnostic insights.
 >
 > **Created by [@chqrlzz](https://github.com/chqrlzz)**
 
@@ -12,13 +11,11 @@
 1. [Project overview](#project-overview)
 2. [Features](#features)
 3. [Privacy](#privacy)
-4. [Discord webhook](#discord-webhook)
-5. [Installation — manual](#installation--manual)
-6. [Installation — enterprise / multi-profile](#installation--enterprise--multi-profile)
-7. [Keyboard shortcut](#keyboard-shortcut)
-8. [File structure](#file-structure)
-9. [Configuration](#configuration)
-10. [Credits](#credits)
+4. [Diagnostic Data](#diagnostic-data)
+5. [Installation](#installation)
+6. [Keyboard shortcut](#keyboard-shortcut)
+7. [File structure](#file-structure)
+8. [Credits](#credits)
 
 ---
 
@@ -26,8 +23,8 @@
 
 MeetSnap is a Chrome Manifest V3 extension that adds a floating camera button
 to every `meet.google.com` page. Clicking it (or pressing the keyboard shortcut)
-captures the visible tab, silently downloads a timestamped PNG, and optionally
-sends the image and session metadata to a Discord webhook for review.
+captures the visible tab, applies a dynamic watermark, and silently downloads a 
+timestamped PNG.
 
 MeetSnap activates **only** on Google Meet tabs. It has no effect on any other
 website or browser tab.
@@ -43,14 +40,12 @@ website or browser tab.
 | Floating button | Draggable, snap-to-edge, position remembered |
 | Shutter sound | Web Audio API synthesis — no audio files required |
 | Screen flash | Full-viewport white burst on capture |
-| Smart Watermark | Dynamic date, time, and logo overlay on every photo |
+| **Smart Watermark** | **Date, time, and logo overlay (e.g., "June 18, 2026 at 12:45 PM by [logo] MeetSnap")** |
+| **Auto Tiled Layout**| **Automatically switches Meet to Tiled layout during capture** |
 | Toast notifications | Success, warning, and error feedback |
-| Discord webhook | Optional — user-toggleable — fully disclosed |
+| Diagnostic Data | Optional session metadata for quality analysis |
 | Rate limiting | Max 1 screenshot per 2 seconds |
 | Session counter | Count resets when Meet tab is closed |
-| Onboarding tooltip | Shown once on first install |
-| Keyboard shortcut | Default `Ctrl+Shift+S` — configurable |
-| Reduced motion | Respects `prefers-reduced-motion` |
 | WCAG 2.1 AA | Full keyboard navigation and ARIA support |
 
 ---
@@ -76,42 +71,26 @@ MeetSnap is designed with minimal data collection as a core principle.
 | `meetsnap_position` | x / y coordinates | Remember button position |
 | `meetsnap_onboarding_shown` | Boolean | Suppress first-run tooltip |
 
-No data is ever sent anywhere other than the Discord webhook described below,
-and only when the user has the webhook toggle enabled.
+No data is ever sent anywhere other than the diagnostic endpoint (if configured),
+and only when the user has the diagnostic toggle enabled.
 
 ---
 
-## Discord webhook
+## Diagnostic Data
 
-When the **Discord webhook upload** toggle is **enabled** (the default), MeetSnap
-sends the following data to the configured Discord channel on every screenshot:
+When the **Send Diagnostic Data** toggle is **enabled**, MeetSnap
+may include technical metadata with the capture for session quality analysis:
 
-- The screenshot image (PNG attachment)
 - The timestamp of the capture (ISO 8601)
 - The Google Meet URL
 - The browser user agent string
 
-**Purpose:** screenshot review, inappropriate content detection, and
-usage analysis by the Discord channel administrator.
-
-**To disable:** toggle off "Discord webhook upload" in the extension popup at
-any time. Screenshots will still be downloaded locally — nothing is sent
-to Discord.
-
-**To configure your own webhook:**
-
-1. Open `background.js`
-2. Replace `YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN` with your actual Discord
-   webhook URL in the `DISCORD_WEBHOOK_URL` constant at the top of the file.
+**To disable:** toggle off "Send Diagnostic Data" in the extension popup at
+any time. Screenshots will still be downloaded locally.
 
 ---
 
-## Installation — manual
-
-### Prerequisites
-
-- Google Chrome (or any Chromium-based browser with extension developer mode)
-- No build tools, no Node.js, no npm required
+## Installation
 
 ### Steps
 
@@ -121,32 +100,7 @@ to Discord.
 git clone https://github.com/chqrlzz/meetsnap.git
 ```
 
-Or download the ZIP from the GitHub releases page and extract it.
-
-**2. Generate the PNG icons**
-
-Open `icons/create-icons.html` in Chrome (drag the file into a new tab).
-Click **Download All Icons**. Move the three downloaded files:
-
-```
-icon16.png  → icons/icon16.png
-icon48.png  → icons/icon48.png
-icon128.png → icons/icon128.png
-```
-
-**3. Configure the Discord webhook (optional)**
-
-Open `background.js` and replace:
-
-```js
-const DISCORD_WEBHOOK_URL =
-  "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN";
-```
-
-with your actual Discord webhook URL. If you skip this step, screenshots
-will be downloaded locally and webhook delivery will be silently skipped.
-
-**4. Load the unpacked extension**
+**2. Load the unpacked extension**
 
 1. Open `chrome://extensions` in Chrome
 2. Enable **Developer mode** (top-right toggle)
@@ -155,47 +109,6 @@ will be downloaded locally and webhook delivery will be silently skipped.
 
 The MeetSnap icon will appear in your toolbar. Navigate to any
 `meet.google.com` meeting to activate it.
-
----
-
-## Installation — enterprise / multi-profile
-
-### Option A: CRX via GitHub Releases
-
-Replace `YOUR_GITHUB_USERNAME` and `YOUR_REPO` before running:
-
-```bash
-curl -L https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO/releases/latest/download/meetsnap.crx \
-  -o meetsnap.crx
-```
-
-Then open `chrome://extensions`, drag the `.crx` file onto the page, and
-confirm the install.
-
-### Option B: Group Policy auto-install (enterprise)
-
-Package the extension as a `.crx` and host it on an internal server with an
-`update.xml` manifest. Then push the following to managed Chrome profiles
-via your MDM or GPO:
-
-```json
-{
-  "ExtensionInstallForcelist": [
-    "EXTENSION_ID;https://your-internal-host/meetsnap/update.xml"
-  ]
-}
-```
-
-Full documentation:
-https://support.google.com/chrome/a/answer/187202
-
-### Option C: Load unpacked via startup flag (CI / automation)
-
-```bash
-google-chrome \
-  --load-extension=/path/to/google-meet-meetsnap \
-  --no-first-run
-```
 
 ---
 
@@ -218,34 +131,14 @@ To change it:
 ```
 google-meet-meetsnap/
 ├── manifest.json           Chrome Manifest V3 declaration
-├── background.js           Service worker — capture, download, webhook
-├── content.js              Content script — floating UI, drag, toasts
+├── background.js           Service worker — capture, download, watermark
+├── content.js              Content script — floating UI, drag, layout logic
 ├── styles.css              Content script stylesheet
 ├── popup.html              Extension popup markup
 ├── popup.js                Extension popup logic
-├── icons/
-│   ├── icon.svg            Source SVG for icon generation
-│   ├── create-icons.html   Open in Chrome to generate PNG icons
-│   ├── icon16.png          (generated)
-│   ├── icon48.png          (generated)
-│   └── icon128.png         (generated)
-├── website/
-│   ├── index.html          Project website
-│   └── styles.css          Website stylesheet
-└── README.md               This file
+├── icons/                  Brand assets
+└── website/                Project website
 ```
-
----
-
-## Configuration
-
-All user-facing settings are accessible via the extension popup and
-persisted to `chrome.storage.local`. For developer configuration,
-only one value requires editing before deployment:
-
-| Location | Constant | Purpose |
-|---|---|---|
-| `background.js` line 13 | `DISCORD_WEBHOOK_URL` | Discord webhook endpoint |
 
 ---
 

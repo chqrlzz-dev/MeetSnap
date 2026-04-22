@@ -24,7 +24,8 @@ const privacyNoticeElement    = document.getElementById("privacy-notice");
 const toggleAutoHide          = document.getElementById("toggle-auto-hide");
 const toggleShutterSound      = document.getElementById("toggle-shutter-sound");
 const toggleVisualFlash       = document.getElementById("toggle-visual-flash");
-const toggleWebhook           = document.getElementById("toggle-webhook");
+const toggleAutoTiled         = document.getElementById("toggle-auto-tiled");
+const togglediagnostic        = document.getElementById("toggle-diagnostic");
 
 // ---------------------------------------------------------------------------
 // Popup initialisation
@@ -42,7 +43,7 @@ async function initializePopupAsync() {
 
   renderMeetStatus(isOnMeetPage);
   applySettingsToToggles(savedSettings);
-  updatePrivacyNoticeVisibility(savedSettings.webhookEnabled);
+  updatePrivacyNoticeVisibility(savedSettings.diagnosticEnabled);
 
   if (isOnMeetPage) {
     registerActiveTabEventListeners(activeTab.id);
@@ -87,7 +88,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   autoHideEnabled:     true,
   shutterSoundEnabled: true,
   visualFlashEnabled:  true,
-  webhookEnabled:      true
+  autoTiledEnabled:    true,
+  diagnosticEnabled:   true
 });
 
 async function loadSavedSettingsAsync() {
@@ -133,11 +135,12 @@ function applySettingsToToggles(settings) {
   toggleAutoHide.checked      = settings.autoHideEnabled;
   toggleShutterSound.checked  = settings.shutterSoundEnabled;
   toggleVisualFlash.checked   = settings.visualFlashEnabled;
-  toggleWebhook.checked       = settings.webhookEnabled;
+  toggleAutoTiled.checked      = settings.autoTiledEnabled;
+  togglediagnostic.checked    = settings.diagnosticEnabled;
 }
 
-function updatePrivacyNoticeVisibility(isWebhookEnabled) {
-  if (isWebhookEnabled) {
+function updatePrivacyNoticeVisibility(isdiagnosticEnabled) {
+  if (isdiagnosticEnabled) {
     privacyNoticeElement.classList.remove("hidden");
   } else {
     privacyNoticeElement.classList.add("hidden");
@@ -164,7 +167,8 @@ function registerActiveTabEventListeners(meetTabId) {
   toggleAutoHide.addEventListener("change",     () => handleToggleChange(meetTabId));
   toggleShutterSound.addEventListener("change", () => handleToggleChange(meetTabId));
   toggleVisualFlash.addEventListener("change",  () => handleToggleChange(meetTabId));
-  toggleWebhook.addEventListener("change",      () => handleToggleChange(meetTabId));
+  toggleAutoTiled.addEventListener("change",    () => handleToggleChange(meetTabId));
+  togglediagnostic.addEventListener("change",   () => handleToggleChange(meetTabId));
 }
 
 /**
@@ -178,10 +182,11 @@ async function handleToggleChange(meetTabId) {
     autoHideEnabled:     toggleAutoHide.checked,
     shutterSoundEnabled: toggleShutterSound.checked,
     visualFlashEnabled:  toggleVisualFlash.checked,
-    webhookEnabled:      toggleWebhook.checked
+    autoTiledEnabled:    toggleAutoTiled.checked,
+    diagnosticEnabled:   togglediagnostic.checked
   };
 
-  updatePrivacyNoticeVisibility(updatedSettings.webhookEnabled);
+  updatePrivacyNoticeVisibility(updatedSettings.diagnosticEnabled);
 
   await persistSettingsAsync(updatedSettings);
   await sendMessageToTabAsync(meetTabId, {
