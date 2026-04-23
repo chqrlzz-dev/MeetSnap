@@ -105,10 +105,55 @@ async function applyWatermarkAsync(imageDataUrl) {
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext("2d");
   
+  // 1. Base image
   ctx.drawImage(bitmap, 0, 0);
-  ctx.font = "bold 24px sans-serif";
-  ctx.fillStyle = "white";
-  ctx.fillText("MeetSnap", 20, bitmap.height - 20);
+
+  // 2. Prep data
+  const baseFontSize = Math.max(12, Math.floor(bitmap.height / 60));
+  const now = new Date();
+  const dateStr = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(now);
+  const timeStr = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(now);
+  const timestampText = `${dateStr} at ${timeStr}`;
+  const brandText = "MeetSnap";
+
+  // 3. Logo
+  const logoUrl = chrome.runtime.getURL("icons/icon128.png");
+  let logoBitmap = null;
+  try {
+    const logoResponse = await fetch(logoUrl);
+    const logoBlob = await logoResponse.blob();
+    logoBitmap = await createImageBitmap(logoBlob);
+  } catch (e) {}
+
+  const leftMargin = Math.max(20, Math.floor(bitmap.width * 0.05));
+  const bottomMargin = Math.max(20, Math.floor(bitmap.height / 40));
+  const yPos = bitmap.height - bottomMargin;
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+
+  // 4. Draw Timestamp
+  ctx.font = `600 ${Math.floor(baseFontSize * 1.1)}px "Segoe UI", sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+  ctx.shadowBlur = 6;
+  ctx.fillText(timestampText, leftMargin, yPos);
+  
+  const tsWidth = ctx.measureText(timestampText).width;
+  const logoSize = Math.floor(baseFontSize * 1.3);
+  const spacing = Math.floor(baseFontSize * 0.5);
+  const logoX = leftMargin + tsWidth + (spacing * 4);
+
+  // 5. Draw Logo & Brand
+  if (logoBitmap) {
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(logoBitmap, logoX, yPos - logoSize, logoSize, logoSize);
+    ctx.globalAlpha = 1.0;
+  }
+
+  ctx.font = `500 ${baseFontSize}px "Segoe UI", sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.fillText(brandText, logoX + (logoBitmap ? logoSize + spacing : 0), yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
   return new Promise(r => {
