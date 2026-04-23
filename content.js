@@ -36,7 +36,6 @@ let floatingContainer = null;
 let screenshotButton  = null;
 let toastContainer    = null;
 let flashOverlay      = null;
-let dynamicTimestamp  = null;
 
 initializeMeetSnapAsync();
 
@@ -50,7 +49,6 @@ async function initializeMeetSnapAsync() {
       injectFlashOverlay();
       injectToastContainer();
       injectFloatingUI();
-      injectDynamicTimestamp();
       sessionState.isInitialized = true;
       console.log("MeetSnap: UI successfully injected.");
       return true;
@@ -430,36 +428,4 @@ async function copyDataUrlToClipboard(dataUrl) {
       console.error("MeetSnap: Failed to copy to clipboard", err2);
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Dynamic Timestamp (Bottom Left)
-// ---------------------------------------------------------------------------
-
-function injectDynamicTimestamp() {
-  if (document.getElementById("meetsnap-dynamic-timestamp")) return;
-
-  dynamicTimestamp = document.createElement("div");
-  dynamicTimestamp.id = "meetsnap-dynamic-timestamp";
-  
-  updateDynamicTimestamp();
-  document.body.appendChild(dynamicTimestamp);
-  
-  setInterval(updateDynamicTimestamp, 1000);
-}
-
-function updateDynamicTimestamp() {
-  if (!dynamicTimestamp) return;
-
-  const now = new Date();
-  const dateStr = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(now);
-  const timeStr = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(now);
-  
-  const logoUrl = chrome.runtime.getURL("icons/icon128.png");
-  
-  dynamicTimestamp.innerHTML = `
-    ${dateStr} at ${timeStr} by 
-    <img src="${logoUrl}" class="meetsnap-logo-mini" alt="MeetSnap Logo" /> 
-    MeetSnap
-  `;
 }

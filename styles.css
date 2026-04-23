@@ -282,35 +282,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   Dynamic Date and Time overlay
-   -------------------------------------------------------------------------- */
-
-#meetsnap-dynamic-timestamp {
-  position: fixed !important;
-  bottom: 24px !important;
-  left: 16.5vw !important;
-  z-index: 2147483647 !important;
-  
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  
-  font-family: "DM Mono", "Fira Mono", monospace !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  color: rgba(255, 255, 255, 0.85) !important;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
-  pointer-events: none !important;
-  user-select: none !important;
-}
-
-#meetsnap-dynamic-timestamp .meetsnap-logo-mini {
-  width: 18px !important;
-  height: 18px !important;
-  opacity: 0.8 !important;
-}
-
-/* --------------------------------------------------------------------------
    Reduced motion — honour the user's operating system preference
    -------------------------------------------------------------------------- */
 

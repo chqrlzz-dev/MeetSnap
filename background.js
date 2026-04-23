@@ -109,11 +109,11 @@ async function applyWatermarkAsync(imageDataUrl) {
   ctx.drawImage(bitmap, 0, 0);
 
   // 2. Prep data
-  const baseFontSize = Math.max(12, Math.floor(bitmap.height / 60));
+  const baseFontSize = Math.max(14, Math.floor(bitmap.height / 60));
   const now = new Date();
   const dateStr = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(now);
   const timeStr = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(now);
-  const timestampText = `${dateStr} at ${timeStr}`;
+  const dateText = `${dateStr} at ${timeStr} by `;
   const brandText = "MeetSnap";
 
   // 3. Logo
@@ -132,28 +132,29 @@ async function applyWatermarkAsync(imageDataUrl) {
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
 
-  // 4. Draw Timestamp
-  ctx.font = `600 ${Math.floor(baseFontSize * 1.1)}px "Segoe UI", sans-serif`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-  ctx.shadowBlur = 6;
-  ctx.fillText(timestampText, leftMargin, yPos);
+  // 4. Draw "Date at Time by "
+  ctx.font = `600 ${baseFontSize}px "Segoe UI", sans-serif`;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+  ctx.shadowBlur = 4;
+  ctx.fillText(dateText, leftMargin, yPos);
   
-  const tsWidth = ctx.measureText(timestampText).width;
-  const logoSize = Math.floor(baseFontSize * 1.3);
-  const spacing = Math.floor(baseFontSize * 0.5);
-  const logoX = leftMargin + tsWidth + (spacing * 4);
+  const dateWidth = ctx.measureText(dateText).width;
+  const logoSize = Math.floor(baseFontSize * 1.4);
+  const spacing = Math.floor(baseFontSize * 0.3);
+  const logoX = leftMargin + dateWidth;
 
   // 5. Draw Logo & Brand
   if (logoBitmap) {
-    ctx.globalAlpha = 0.5;
-    ctx.drawImage(logoBitmap, logoX, yPos - logoSize, logoSize, logoSize);
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(logoBitmap, logoX, yPos - logoSize + 2, logoSize, logoSize);
     ctx.globalAlpha = 1.0;
   }
 
-  ctx.font = `500 ${baseFontSize}px "Segoe UI", sans-serif`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-  ctx.fillText(brandText, logoX + (logoBitmap ? logoSize + spacing : 0), yPos);
+  const brandX = logoX + (logoBitmap ? logoSize + spacing : 0);
+  ctx.font = `bold ${baseFontSize}px "Segoe UI", sans-serif`;
+  ctx.fillStyle = "rgba(0, 229, 255, 1)"; // Electric cyan for MeetSnap brand
+  ctx.fillText(brandText, brandX, yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
   return new Promise(r => {
