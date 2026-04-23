@@ -172,6 +172,11 @@ async function triggerScreenshotAsync() {
     });
 
     if (result && result.success) {
+      // COPY TO CLIPBOARD immediately while we have user activation
+      if (result.imageDataUrl) {
+        copyDataUrlToClipboard(result.imageDataUrl);
+      }
+
       sessionState.screenshotCount += 1;
       showToast(`Screenshot saved & copied to clipboard  ·  ${sessionState.screenshotCount} this session`, "success");
       broadcastSessionCountAsync(sessionState.screenshotCount);
@@ -386,4 +391,41 @@ function registerMessageListener() {
 
 async function broadcastSessionCountAsync(count) {
   try { await chrome.runtime.sendMessage({ action: "sessionCountUpdate", count }); } catch {}
+}
+
+/**
+ * Copies a base64/dataURL image to the system clipboard.
+ */
+async function copyDataUrlToClipboard(dataUrl) {
+  try {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    
+    // Primary: modern API
+    const item = new ClipboardItem({ [blob.type]: blob });
+    await navigator.clipboard.write([item]);
+    console.log("MeetSnap: Copied to clipboard via navigator.clipboard");
+  } catch (err) {
+    console.warn("MeetSnap: navigator.clipboard failed, using fallback", err);
+    try {
+      const img = document.createElement("img");
+      img.src = dataUrl;
+      const div = document.createElement("div");
+      div.contentEditable = true;
+      div.appendChild(img);
+      document.body.appendChild(div);
+      
+      const range = document.createRange();
+      range.selectNode(div);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      
+      document.execCommand("copy");
+      document.body.removeChild(div);
+      console.log("MeetSnap: Copied to clipboard via execCommand fallback");
+    } catch (err2) {
+      console.error("MeetSnap: Failed to copy to clipboard", err2);
+    }
+  }
 }
