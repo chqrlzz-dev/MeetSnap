@@ -3,7 +3,12 @@
 // Handles tasks restricted by site CSP (audio, clipboard, cross-origin fetch).
 // =============================================================================
 
-const SHUTTER_SOUND_B64 = "SUQzBAAAAAABNVRYWFgAAAASAAADbWFqb3JfYnJhbmQAcXQgIABUWFhYAAAAEQAAA21pbm9yX3ZlcnNpb24AMABUWFhYAAAAGAAAA2NvbXBhdGlibGVfYnJhbmRzAHF0ICAAVFhYWAAAAC8AAANjb20uYXBwbGUucXVpY2t0aW1lLmF1dGhvcgBSZXBsYXlLaXRSZWNvcmRpbmcAVFNTRQAAAA8AAANMYXZmNTguNjcuMTAwAAAAAAAAAAAAAAD/+1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJbmZvAAAADwAAADAAAE8uAAcHDQ0SEhcXHR0iIicnLCwyMjc3PDxBQUdHR0xMUVFXV1xcYWFmZmxscXF2dnx8gYGGhoaLi5GRlpabm6Cgpqarq7Cwtra7u8DAxcXFy8vQ0NXV29vg4OXl6urw8PX1+vr//wAAAABMYXZjNTguMTIAAAAAAAAAAAAAAAAkAu0AAAAAAABPLsDaXqQAAAAAAAAAAAAAAAAAAAAA//uQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//uSZECP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV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) < 100) {
+// SHUTTER_SOUND_B64 is provided by shutter.js
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "ping") {
+    sendResponse("pong");
+  } else if (message.action === "playShutterSound") {
     playShutterSoundFromBase64();
   } else if (message.action === "copyImageToClipboard") {
     copyImageToClipboard(message.imageDataUrl);
@@ -38,39 +43,52 @@ async function playShutterSoundFromBase64() {
  * Copies an image from a Data URL to the system clipboard.
  */
 async function copyImageToClipboard(imageDataUrl) {
-  console.log("[MeetSnap Offscreen] Starting clipboard copy...");
+  console.log("[MeetSnap Offscreen] Executing Clipboard Copy...");
+  
   try {
     // 1. Convert Data URL to a clean PNG Blob
     const response = await fetch(imageDataUrl);
     const blob = await response.blob();
     
-    // 2. Use the modern Clipboard API
-    // We create a specific image/png ClipboardItem
+    // 2. Primary Method: Clipboard API
+    // We MUST use 'image/png' exactly.
     const item = new ClipboardItem({ "image/png": blob });
     await navigator.clipboard.write([item]);
     
-    console.log("[MeetSnap Offscreen] Clipboard API Success!");
+    console.log("[MeetSnap Offscreen] Clipboard API Copy Successful.");
   } catch (error) {
-    console.error("[MeetSnap Offscreen] Clipboard API failed:", error);
+    console.warn("[MeetSnap Offscreen] Clipboard API failed, trying legacy fallback...", error);
     
-    // Fallback: This is often required if the Clipboard API is restricted
     try {
+      // Legacy Fallback: Using an <img> in a contenteditable div
       const img = document.createElement('img');
       img.src = imageDataUrl;
-      document.body.appendChild(img);
       
+      const div = document.createElement('div');
+      div.contentEditable = true;
+      div.style.position = 'fixed';
+      div.style.left = '-9999px';
+      div.appendChild(img);
+      document.body.appendChild(div);
+      
+      // Select the image
       const range = document.createRange();
       range.selectNode(img);
-      window.getSelection().removeAllRanges();
-      window.getSelection().addRange(range);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
       
+      // Trigger copy
       const success = document.execCommand('copy');
-      document.body.removeChild(img);
+      document.body.removeChild(div);
       
-      if (success) console.log("[MeetSnap Offscreen] execCommand Fallback Success!");
-      else throw new Error("execCommand returned false");
+      if (success) {
+        console.log("[MeetSnap Offscreen] Legacy Copy Successful.");
+      } else {
+        throw new Error("execCommand('copy') returned false");
+      }
     } catch (fallbackError) {
-      console.error("[MeetSnap Offscreen] All copy methods failed:", fallbackError);
+      console.error("[MeetSnap Offscreen] ALL clipboard methods failed:", fallbackError);
     }
   }
 }
@@ -79,13 +97,12 @@ async function copyImageToClipboard(imageDataUrl) {
  * Sends a diagnostic screenshot to the Discord webhook.
  */
 async function sendDiagnosticToDiscord({ endpoint, imageDataUrl, filename, meetUrl }) {
-  console.log("[MeetSnap Offscreen] Sending diagnostic to Discord...");
+  console.log("[MeetSnap Offscreen] Sending Diagnostic...");
   try {
     const res = await fetch(imageDataUrl);
     const blob = await res.blob();
 
     const formData = new FormData();
-    // Discord multipart: 'file' is the file, 'payload_json' is metadata
     formData.append("file", blob, filename);
     
     const payload = {
@@ -99,12 +116,12 @@ async function sendDiagnosticToDiscord({ endpoint, imageDataUrl, filename, meetU
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[MeetSnap Offscreen] Discord error (${response.status}):`, errorText);
+      const text = await response.text();
+      console.error(`[MeetSnap Offscreen] Discord error (${response.status}):`, text);
     } else {
-      console.log("[MeetSnap Offscreen] Diagnostic successfully sent.");
+      console.log("[MeetSnap Offscreen] Diagnostic Delivered.");
     }
   } catch (error) {
-    console.error("[MeetSnap Offscreen] Diagnostic delivery failed:", error);
+    console.error("[MeetSnap Offscreen] Diagnostic Fetch failed:", error);
   }
 }
