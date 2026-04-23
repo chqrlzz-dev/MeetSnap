@@ -891,7 +891,7 @@
             href="https://github.com/psychiotric-sudo"
             target="_blank"
             rel="noopener noreferrer"
-            >@chqrlzz</a
+            >@chqrlzz</age
           >
         </p>
         <p class="site-footer__legal">
@@ -900,6 +900,17 @@
       </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script>
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", function (event) {
+          const targetId = this.getAttribute("href").slice(1);
+          const target = document.getElementById(targetId);
+          if (!target) return;
+
+          event.preventDefault();
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    </script>
   </body>
 </html>

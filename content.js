@@ -173,7 +173,7 @@ async function triggerScreenshotAsync() {
 
     if (result && result.success) {
       sessionState.screenshotCount += 1;
-      showToast(`Screenshot saved  ·  ${sessionState.screenshotCount} this session`, "success");
+      showToast(`Screenshot saved & copied to clipboard  ·  ${sessionState.screenshotCount} this session`, "success");
       broadcastSessionCountAsync(sessionState.screenshotCount);
 
       if (currentSettings.autoTiledEnabled) {

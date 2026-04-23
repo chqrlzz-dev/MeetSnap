@@ -10,7 +10,8 @@
     "activeTab",
     "downloads",
     "storage",
-    "offscreen"
+    "offscreen",
+    "clipboardWrite"
   ],
 
   "host_permissions": [
